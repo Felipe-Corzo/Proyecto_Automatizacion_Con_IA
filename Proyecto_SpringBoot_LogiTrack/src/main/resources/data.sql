@@ -25,6 +25,16 @@ INSERT INTO productos (id, nombre, categoria, stock, precio) VALUES
 (5, 'Disco Duro Externo SSD 2TB', 'Almacenamiento', 200, 180.00)
 ON CONFLICT (id) DO NOTHING;
 
+-- Proveedor y orden de compra inicial para pruebas de ciclo de vida
+INSERT INTO suppliers (id, nombre, nit_rut, activo, dias_entrega) VALUES
+(1, 'Proveedor General LogiTrack', '900123456-1', true, 10)
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO ordenes_compra (id, producto_id, proveedor_id, bodega_destino_id, cantidad,
+							precio_unitario, total, fecha_creacion, estado) VALUES
+(1, 1, 1, 1, 10, 1200.00, 12000.00, CURRENT_TIMESTAMP, 'BORRADOR')
+ON CONFLICT (id) DO NOTHING;
+
 -- Movimientos Iniciales
 INSERT INTO movimientos (id, fecha, tipo_movimiento, usuario_id, bodega_origen_id, bodega_destino_id) VALUES
 (1, CURRENT_TIMESTAMP, 'ENTRADA', 1, NULL, 1),

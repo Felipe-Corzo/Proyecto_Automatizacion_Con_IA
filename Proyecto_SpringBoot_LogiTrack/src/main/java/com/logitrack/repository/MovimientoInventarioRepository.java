@@ -34,4 +34,10 @@ public interface MovimientoInventarioRepository extends JpaRepository<Movimiento
     List<MovimientoInventario> findByUsuarioId(Long usuarioId);
 
     Page<MovimientoInventario> findByUsuarioId(Long usuarioId, Pageable pageable);
+
+    @Query("SELECT COALESCE(SUM(d.cantidad), 0) FROM MovimientoInventario m JOIN m.detalles d WHERE d.producto.id = :productoId AND m.tipoMovimiento = com.logitrack.model.TipoMovimiento.SALIDA AND m.fecha >= :desde")
+    Integer calcularSalidasUltimos30Dias(@Param("productoId") Long productoId, @Param("desde") LocalDateTime desde);
+
+    @Query("SELECT COALESCE(SUM(ib.stock), 0) FROM InventarioBodega ib WHERE ib.producto.id = :productoId")
+    Integer calcularStockActual(@Param("productoId") Long productoId);
 }
