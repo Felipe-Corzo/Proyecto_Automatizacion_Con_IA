@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Movimientos de Inventario - LogiTrack</title>
+
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap">
+
+<link rel="stylesheet" href="../css/styles.css">
+<link rel="stylesheet" href="../css/ui-kit.css"> 
+</head>
+<body>
+<div class="app-shell">
+
+  <aside class="sidebar">
+    <div class="sidebar__header">
+      <div class="sidebar__logo">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M12 2L21 7V17L12 22L3 17V7L12 2Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M3 7L12 12L21 7" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+          <path d="M12 12V22" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+        </svg>
+      </div>
+      <div>
+        <h1 class="sidebar__title">LogiTrack</h1>
+        <span class="sidebar__subtitle">Warehouse Management</span>
+      </div>
+    </div>
+
+    <nav class="sidebar__nav">
+      <a class="sidebar__link" href="dashboard.html">
+        <span class="material-symbols-outlined icon-lg">dashboard</span>
+        Dashboard
+      </a>
+      <a class="sidebar__link" href="bodegas.html">
+        <span class="material-symbols-outlined icon-lg">inventory_2</span>
+        Bodegas
+      </a>
+      <a class="sidebar__link" href="productos.html">
+        <span class="material-symbols-outlined icon-lg">package_2</span>
+        Productos
+      </a>
+      <a class="sidebar__link is-active" href="movimientos.html">
+        <span class="material-symbols-outlined is-filled icon-lg">swap_horiz</span>
+        Movimientos
+      </a>
+      <a class="sidebar__link" href="auditoria.html">
+        <span class="material-symbols-outlined icon-lg">history_edu</span>
+        Auditoría
+      </a>
+    </nav>
+  </aside>
+
+  <div class="main-wrapper">
+    <header class="topbar">
+      <div class="topbar__left">
+        <button class="topbar__menu-btn" type="button" aria-label="Abrir menú">
+          <span class="material-symbols-outlined">menu</span>
+        </button>
+        <div class="search-field">
+          <span class="material-symbols-outlined">search</span>
+          <input type="text" placeholder="Buscar movimientos...">
+        </div>
+      </div>
+      <div class="topbar__right">
+        <div class="topbar__divider"></div>
+        <button class="logout-btn" type="button">
+          <span class="material-symbols-outlined icon-sm">logout</span>
+          Cerrar sesión
+        </button>
+        <div class="avatar" title="Administrador">AD</div>
+      </div>
+    </header>
+
+    <main class="content">
+      <div class="content__inner">
+
+        <div class="page-toolbar" data-animate style="animation-delay:0ms">
+          <div>
+            <h2 class="content__title">Movimientos de Inventario</h2>
+            <p class="content__subtitle">Registro y auditoría de entradas, salidas y transferencias.</p>
+          </div>
+          <a href="nuevo-movimiento.html" class="toolbar-btn toolbar-btn--primary">
+            <span class="material-symbols-outlined icon-sm">add</span>
+            Registrar Movimiento
+          </a>
+        </div>
+
+        <div class="filters-bar form-grid-4" data-animate style="animation-delay:70ms">
+          <div class="form-group">
+            <label class="form-label text-uppercase">Fecha (Desde)</label>
+            <input class="form-input" id="mov-fecha-desde" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label text-uppercase">Fecha (Hasta)</label>
+            <input class="form-input" id="mov-fecha-hasta" type="date">
+          </div>
+          <div class="form-group">
+            <label class="form-label text-uppercase">Tipo de Movimiento</label>
+            <div class="select-wrapper">
+              <select class="form-select" id="mov-tipo">
+                <option value="">Todos</option>
+                <option value="ENTRADA">ENTRADA</option>
+                <option value="SALIDA">SALIDA</option>
+                <option value="TRANSFERENCIA">TRANSFERENCIA</option>
+              </select>
+              <span class="material-symbols-outlined">expand_more</span>
+            </div>
+          </div>
+          <div class="form-group">
+            <label class="form-label text-uppercase">Bodega</label>
+            <div class="select-wrapper">
+              <select class="form-select" id="mov-bodega">
+                <option value="">Todas las Bodegas</option>
+              </select>
+              <span class="material-symbols-outlined">expand_more</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="table-card" data-animate style="animation-delay:140ms">
+          <div class="table-card__scroll">
+            <table class="data-table">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Tipo</th>
+                  <th>Usuario Responsable</th>
+                  <th>Origen</th>
+                  <th>Destino</th>
+                  <th class="is-right">Productos</th>
+                  <th class="is-center">Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="movimientos-tbody"></tbody>
+            </table>
+          </div>
+          <div class="pagination" id="movimientos-pagination">
+            <span class="pagination__info" id="movimientos-pagination-info">Cargando...</span>
+            <div class="pagination__controls" id="movimientos-pagination-controls">
+              <button class="pagination__btn" type="button" id="movimientos-prev-btn" disabled><span class="material-symbols-outlined icon-sm">chevron_left</span></button>
+              <div id="movimientos-page-numbers" style="display:flex;align-items:center;gap:0.25rem;"></div>
+              <button class="pagination__btn" type="button" id="movimientos-next-btn" disabled><span class="material-symbols-outlined icon-sm">chevron_right</span></button>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </main>
+  </div>
+  <div class="mobile-overlay"></div>
+</div>
+
+<!-- Modal: Detalle de Movimiento -->
+<div class="modal-backdrop" id="movimiento-detalle-modal-backdrop">
+  <div class="modal modal--lg" role="dialog" aria-modal="true" aria-labelledby="movimiento-detalle-modal-title">
+    <div class="modal__header">
+      <h2 class="modal__title" id="movimiento-detalle-modal-title">Detalle del Movimiento</h2>
+      <button class="modal__close" type="button" aria-label="Cerrar" data-modal-dismiss>
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
+    <div class="modal__body">
+      <!-- Info badges -->
+      <div class="info-badges-group" id="movimiento-detalle-info">
+        <span class="info-badge" id="detalle-tipo-badge">
+          <span class="material-symbols-outlined icon-sm">swap_horiz</span>
+          <span>-</span>
+        </span>
+        <span class="info-badge info-badge--accent" id="detalle-fecha">
+          <span class="material-symbols-outlined icon-sm">schedule</span>
+          <span>-</span>
+        </span>
+        <span class="info-badge" id="detalle-usuario">
+          <span class="material-symbols-outlined icon-sm">person</span>
+          <span>-</span>
+        </span>
+        <span class="info-badge" id="detalle-origen">
+          <span class="material-symbols-outlined icon-sm">move_up</span>
+          <span>Origen: -</span>
+        </span>
+        <span class="info-badge" id="detalle-destino">
+          <span class="material-symbols-outlined icon-sm">move_down</span>
+          <span>Destino: -</span>
+        </span>
+      </div>
+
+      <!-- Tabla de productos -->
+      <div class="table-card__scroll" style="max-height: 350px;">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Producto</th>
+              <th>Categoría</th>
+              <th class="is-right">Cantidad</th>
+            </tr>
+          </thead>
+          <tbody id="movimiento-detalle-tbody">
+            <tr><td colspan="4" class="is-center cell-muted">Cargando...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal__footer">
+      <button class="toolbar-btn toolbar-btn--primary" type="button" data-modal-dismiss>Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/ui-kit.js"></script>    
+<script src="../js/script.js"></script>
+</body>
