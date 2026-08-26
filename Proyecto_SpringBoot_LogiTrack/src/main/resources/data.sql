@@ -2,11 +2,12 @@
 
 SET search_path TO proyecto;
 
--- Usuarios (Contraseña codificada con BCrypt: "admin123")
+-- Usuarios (Contraseña codificada con BCrypt: "admin123" para admin/jdoe/mgarcia, "agente123" para agente_automatizado)
 INSERT INTO usuarios (id, username, email, password, rol) VALUES
 (1, 'admin', 'admin@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'ADMIN'),
 (2, 'jdoe', 'j.doe@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'EMPLEADO'),
-(3, 'mgarcia', 'm.garcia@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'EMPLEADO')
+(3, 'mgarcia', 'm.garcia@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'EMPLEADO'),
+(4, 'agente_automatizado', 'agente@logitrack.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'AGENTE')
 ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password, email = EXCLUDED.email, rol = EXCLUDED.rol;
 
 -- Bodegas
