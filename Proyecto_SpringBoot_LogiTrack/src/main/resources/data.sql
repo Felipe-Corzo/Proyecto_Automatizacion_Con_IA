@@ -7,7 +7,7 @@ INSERT INTO usuarios (id, username, email, password, rol) VALUES
 (1, 'admin', 'admin@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'ADMIN'),
 (2, 'jdoe', 'j.doe@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'EMPLEADO'),
 (3, 'mgarcia', 'm.garcia@logitrac.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'EMPLEADO'),
-(4, 'agente_automatizado', 'agente@logitrack.com', '$2a$10$R5CO2cejdUE9FJOX8r2h9O4xJDtxNGuhNtRHnxac07qStUYvLJ14i', 'AGENTE')
+(4, 'agente_automatizado', 'agente@logitrack.com', '$2a$10$Tm5de5aPREvdctvDcsoDueBY9qxQLDRFwn9Y5vptY1Sfkiplj1rY6', 'AGENTE')
 ON CONFLICT (id) DO UPDATE SET password = EXCLUDED.password, email = EXCLUDED.email, rol = EXCLUDED.rol;
 
 -- Bodegas

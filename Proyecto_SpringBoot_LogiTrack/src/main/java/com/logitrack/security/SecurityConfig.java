@@ -77,11 +77,11 @@ public class SecurityConfig {
                 // Módulo de Auditoría restringido exclusivamente a ADMIN
                 .requestMatchers("/api/auditorias/**").hasRole("ADMIN")
                 // Bodegas: EMPLEADO solo puede VER; CREAR y ELIMINAR solo ADMIN
-                .requestMatchers(HttpMethod.GET, "/api/bodegas/**").hasAnyRole("ADMIN", "EMPLEADO")
+                .requestMatchers(HttpMethod.GET, "/api/bodegas/**").hasAnyRole("ADMIN", "EMPLEADO", "AGENTE")
                 .requestMatchers(HttpMethod.POST, "/api/bodegas/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/api/bodegas/**").hasRole("ADMIN")
                 // Productos: EMPLEADO puede VER y CREAR; solo ADMIN puede ELIMINAR
-                .requestMatchers(HttpMethod.GET, "/api/productos/**").hasAnyRole("ADMIN", "EMPLEADO")
+                .requestMatchers(HttpMethod.GET, "/api/productos/**").hasAnyRole("ADMIN", "EMPLEADO", "AGENTE")
                 .requestMatchers(HttpMethod.POST, "/api/productos/**").hasAnyRole("ADMIN", "EMPLEADO")
                 .requestMatchers(HttpMethod.DELETE, "/api/productos/**").hasRole("ADMIN")
                 // Demás API endpoints requieren autenticación

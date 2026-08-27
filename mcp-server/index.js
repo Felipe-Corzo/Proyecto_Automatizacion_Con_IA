@@ -1,11 +1,13 @@
 require('dotenv').config();
 const { Server } = require('@modelcontextprotocol/sdk/server/index.js');
 const { StdioServerTransport } = require('@modelcontextprotocol/sdk/server/stdio.js');
+const { SSEServerTransport } = require('@modelcontextprotocol/sdk/server/sse.js');
 const {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } = require('@modelcontextprotocol/sdk/types.js');
 const axios = require('axios');
+const express = require('express');
 
 const SPRING_BOOT_BASE_URL = process.env.SPRING_BOOT_BASE_URL || 'http://localhost:8080';
 const AGENT_USERNAME = process.env.AGENT_USERNAME || 'agente_automatizado';
@@ -80,6 +82,18 @@ async function apiPost(endpoint, data) {
   }
 }
 
+function extractProductId(args) {
+  const candidate = args.productoId
+    ?? args.productId
+    ?? args.producto_id
+    ?? args.idProducto
+    ?? args.id
+    ?? args.producto?.id
+    ?? args.product?.id;
+  const productId = Number(candidate);
+  return Number.isInteger(productId) && productId > 0 ? productId : null;
+}
+
 const server = new Server(
   {
     name: process.env.MCP_SERVER_NAME || 'logitrack-iq-mcp',
@@ -131,7 +145,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           properties: {
             productoId: {
               type: 'number',
-              description: 'Identificador único del producto (requerido).',
+              description: 'Identificador único del producto (requerido). Usa el campo productoId, no el nombre del producto.',
             },
           },
           required: ['productoId'],
@@ -206,27 +220,32 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
+  const toolArgs = args || {};
 
   try {
     switch (name) {
       case 'get_inventory_status': {
         const endpoint = `${process.env.API_INVENTORY_ENDPOINT || '/api/inventarios'}/status`;
-        const data = await apiGet(endpoint, { bodegaId: args.bodegaId });
+        const data = await apiGet(endpoint, { bodegaId: toolArgs.bodegaId });
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
       }
 
       case 'get_low_stock_products': {
-        const endpoint = `${process.env.API_PRODUCTS_ENDPOINT || '/api/productos'}/low-stock`;
-        const data = await apiGet(endpoint, { soloQuiebre: args.soloQuiebre });
+        const endpoint = process.env.API_LOW_STOCK_ENDPOINT || '/api/productos/bajo-stock';
+        const data = await apiGet(endpoint, { soloQuiebre: toolArgs.soloQuiebre });
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
         };
       }
 
       case 'get_suppliers_by_product': {
-        const endpoint = `${process.env.API_SUPPLIERS_ENDPOINT || '/api/proveedores'}/by-product/${args.productoId}`;
+        const productoId = extractProductId(toolArgs);
+        if (productoId === null) {
+          throw new Error('productoId es obligatorio y debe ser un número entero positivo.');
+        }
+        const endpoint = `${process.env.API_SUPPLIERS_ENDPOINT || '/api/proveedores'}/by-product/${productoId}`;
         const data = await apiGet(endpoint);
         return {
           content: [{ type: 'text', text: JSON.stringify(data, null, 2) }],
@@ -235,10 +254,19 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       case 'create_draft_purchase_order': {
         const endpoint = process.env.API_ORDERS_ENDPOINT || '/api/ordenes';
+        if (!Number.isInteger(Number(toolArgs.proveedorId)) || Number(toolArgs.proveedorId) <= 0) {
+          throw new Error('proveedorId es obligatorio y debe ser un número entero positivo.');
+        }
+        if (!Number.isInteger(Number(toolArgs.bodegaDestinoId)) || Number(toolArgs.bodegaDestinoId) <= 0) {
+          throw new Error('bodegaDestinoId es obligatorio y debe ser un número entero positivo.');
+        }
+        if (!Array.isArray(toolArgs.detalles) || toolArgs.detalles.length === 0) {
+          throw new Error('detalles es obligatorio y debe contener al menos una línea.');
+        }
         const payload = {
-          proveedorId: args.proveedorId,
-          bodegaDestinoId: args.bodegaDestinoId,
-          detalles: args.detalles,
+          proveedorId: Number(toolArgs.proveedorId),
+          bodegaDestinoId: Number(toolArgs.bodegaDestinoId),
+          detalles: toolArgs.detalles,
         };
         const data = await apiPost(endpoint, payload);
         return {
@@ -257,9 +285,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case 'publish_daily_summary': {
         const endpoint = process.env.API_SUMMARIES_ENDPOINT || '/api/resumenes-panel';
         const payload = {
-          resumenEjecutivo: args.resumenEjecutivo,
-          alertasCriticas: args.alertasCriticas,
-          recomendacionesAgente: args.recomendacionesAgente,
+          resumenEjecutivo: toolArgs.resumenEjecutivo,
+          alertasCriticas: toolArgs.alertasCriticas,
+          recomendacionesAgente: toolArgs.recomendacionesAgente,
         };
         const data = await apiPost(endpoint, payload);
         return {
@@ -286,9 +314,90 @@ async function main() {
   console.error('[MCP] Iniciando servidor LogiTrack IQ MCP...');
   console.error(`[MCP] Backend objetivo: ${SPRING_BOOT_BASE_URL}`);
 
-  const transport = new StdioServerTransport();
-  await server.connect(transport);
-  console.error('[MCP] Servidor MCP conectado y escuchando en stdio');
+  const transportMode = (process.env.MCP_TRANSPORT || 'stdio').toLowerCase();
+
+  if (transportMode === 'stdio') {
+    const transport = new StdioServerTransport();
+    await server.connect(transport);
+    console.error('[MCP] Servidor MCP conectado y escuchando en stdio');
+    return;
+  }
+
+  if (transportMode !== 'sse') {
+    throw new Error(`Transporte MCP no soportado: ${transportMode}. Usa "stdio" o "sse".`);
+  }
+
+  const app = express();
+  const port = Number(process.env.MCP_PORT || 3001);
+  const ssePath = process.env.MCP_SSE_PATH || '/sse';
+  const messagesPath = process.env.MCP_MESSAGES_PATH || '/messages';
+  const sharedSecret = process.env.MCP_SHARED_SECRET;
+  let activeTransport = null;
+
+  const requireMcpAuth = (request, response, next) => {
+    if (!sharedSecret) {
+      response.status(503).json({ error: 'MCP_SHARED_SECRET no está configurado.' });
+      return;
+    }
+
+    const authorization = request.get('authorization');
+    if (authorization !== `Bearer ${sharedSecret}`) {
+      response.status(401).json({ error: 'No autorizado.' });
+      return;
+    }
+
+    next();
+  };
+
+  app.get('/health', (request, response) => {
+    response.json({ status: 'ok', transport: 'sse' });
+  });
+
+  app.get(ssePath, requireMcpAuth, async (request, response) => {
+    if (activeTransport) {
+      await activeTransport.close();
+    }
+
+    const transport = new SSEServerTransport(messagesPath, response);
+    activeTransport = transport;
+    transport.onclose = () => {
+      if (activeTransport === transport) {
+        activeTransport = null;
+      }
+    };
+
+    try {
+      await server.connect(transport);
+    } catch (error) {
+      activeTransport = null;
+      console.error('[MCP] Error al abrir la conexión SSE:', error);
+      if (!response.headersSent) {
+        response.status(500).json({ error: 'No se pudo abrir la conexión MCP.' });
+      }
+    }
+  });
+
+  app.post(messagesPath, requireMcpAuth, async (request, response) => {
+    const sessionId = request.query.sessionId;
+    if (!activeTransport || activeTransport.sessionId !== sessionId) {
+      response.status(400).send('Sesión MCP inválida o expirada.');
+      return;
+    }
+
+    try {
+      await activeTransport.handlePostMessage(request, response);
+    } catch (error) {
+      console.error('[MCP] Error al procesar mensaje SSE:', error);
+      if (!response.headersSent) {
+        response.status(500).json({ error: 'No se pudo procesar el mensaje MCP.' });
+      }
+    }
+  });
+
+  app.listen(port, '0.0.0.0', () => {
+    console.error(`[MCP] Servidor SSE escuchando en http://0.0.0.0:${port}${ssePath}`);
+    console.error(`[MCP] Endpoint de mensajes: ${messagesPath}`);
+  });
 }
 
 main().catch((error) => {

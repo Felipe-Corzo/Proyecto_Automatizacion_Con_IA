@@ -126,7 +126,12 @@ public class ProductoController {
     }
 
     @GetMapping("/bajo-stock")
-    public ResponseEntity<List<Producto>> obtenerBajoStock(@RequestParam(defaultValue = "10") Integer umbral) {
+    public ResponseEntity<List<Producto>> obtenerBajoStock(
+            @RequestParam(defaultValue = "10") Integer umbral,
+            @RequestParam(defaultValue = "false") Boolean soloQuiebre) {
+        if (Boolean.TRUE.equals(soloQuiebre)) {
+            return ResponseEntity.ok(productoService.buscarSinStock());
+        }
         return ResponseEntity.ok(productoService.buscarBajoStock(umbral));
     }
 

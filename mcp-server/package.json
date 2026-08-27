@@ -4,6 +4,8 @@
   "description": "Servidor MCP para la Torre de Control de LogiTrack IQ",
   "main": "index.js",
   "scripts": {
+    "start": "node index.js",
+    "tunnel:ngrok": "npx ngrok http --url=shifter-winter-easeful.ngrok-free.dev 80",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -11,6 +13,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "axios": "^1.20.0",
-    "dotenv": "^17.4.2"
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1"
   }
 }
