@@ -25,9 +25,15 @@ async function apiFetch(path, options = {}) {
     const token = getToken();
     const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
     if (token) headers['Authorization'] = `Bearer ${token}`;
-   
-    const response = await fetch(path, { ...options, headers });
-   
+    
+    const responseType = options.responseType || 'json';
+    const fetchOptions = { ...options, headers };
+    if (responseType !== 'json') {
+      delete fetchOptions.headers['Content-Type'];
+    }
+    
+    const response = await fetch(path, fetchOptions);
+    
     // Un 401 en /auth/login es 'credenciales incorrectas', NO sesion expirada.
     // No debe cerrar sesion ni redirigir; debe dejar que el propio formulario
     // muestre su mensaje de error.
@@ -46,7 +52,14 @@ async function apiFetch(path, options = {}) {
       const err = await response.json().catch(() => ({}));
       throw new Error(err.error || `Error ${response.status}`);
     }
-    return response.status === 204 ? null : response.json();
+    if (response.status === 204) return null;
+    
+    switch (responseType) {
+      case 'blob': return response.blob();
+      case 'arraybuffer': return response.arrayBuffer();
+      case 'text': return response.text();
+      default: return response.json();
+    }
   }
 
 // --- Guardas de ruta, usar al inicio de cada pagina interna ---

@@ -2360,3 +2360,162 @@ input {
   font-size: 13px;
   line-height: 1.5;
 }
+
+/* ============================================================================
+   Órdenes de Compra — badges de estado y utilidades
+   ============================================================================ */
+.status-badge--draft {
+  background-color: #fef3c7;
+  color: #92400e;
+  border: 1px solid rgba(146, 64, 14, 0.25);
+}
+.status-badge--approved {
+  background-color: #dbeafe;
+  color: #1e40af;
+  border: 1px solid rgba(30, 64, 175, 0.25);
+}
+.status-badge--received {
+  background-color: var(--color-success-bg);
+  color: var(--color-success-text);
+  border: 1px solid rgba(4, 120, 87, 0.2);
+}
+.status-badge--cancelled {
+  background-color: var(--color-error-container);
+  color: var(--color-on-error-container);
+  border: 1px solid var(--color-error);
+}
+.filter-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.filter-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.4rem 0.85rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-outline-variant);
+  background-color: var(--color-surface-container-lowest);
+  color: var(--color-on-surface-variant);
+  font-size: var(--font-label-md-size);
+  font-weight: var(--font-label-md-weight);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.filter-pill:hover {
+  border-color: var(--color-primary);
+  color: var(--color-primary);
+}
+.filter-pill.is-active {
+  background-color: var(--color-primary-container);
+  border-color: var(--color-primary);
+  color: var(--color-on-primary-container);
+}
+.order-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.order-cell__number {
+  font-family: var(--font-family-mono);
+  font-size: 13px;
+  color: var(--color-on-surface);
+  font-weight: 600;
+}
+.order-cell__sub {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+
+/* ============================================================================
+   Torre de Control — bloque de resumen inteligente
+   ============================================================================ */
+.torre-summary {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.25rem;
+}
+@media (min-width: 1024px) {
+  .torre-summary {
+    grid-template-columns: 1.4fr 1fr;
+  }
+}
+.summary-card {
+  background-color: var(--color-surface-container-lowest);
+  border: 1px solid var(--color-outline-variant);
+  border-radius: var(--radius-md);
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.summary-card__header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+.summary-card__icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  display: grid;
+  place-items: center;
+  background-color: var(--color-primary-container);
+  color: var(--color-on-primary-container);
+}
+.summary-card__icon .material-symbols-outlined { font-size: 22px; }
+.summary-card__title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--color-on-surface);
+}
+.summary-card__date {
+  font-size: 12px;
+  color: var(--color-on-surface-variant);
+}
+.summary-card__narrative {
+  background-color: var(--color-surface-container-low);
+  border-left: 3px solid var(--color-primary);
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-sm);
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--color-on-surface);
+  white-space: pre-wrap;
+}
+.summary-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 2rem 1rem;
+  color: var(--color-on-surface-variant);
+  text-align: center;
+}
+.summary-empty .material-symbols-outlined { font-size: 34px; opacity: 0.5; }
+.summary-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.summary-list__item {
+  display: flex;
+  gap: 0.6rem;
+  font-size: 13px;
+  line-height: 1.45;
+  color: var(--color-on-surface);
+}
+.summary-list__bullet {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  margin-top: 6px;
+  border-radius: 50%;
+  background-color: var(--color-primary);
+}
+.kpi-card__icon--warning { background-color: #fef3c7; color: #92400e; }
+.kpi-card__icon--quiebre { background-color: var(--color-error-container); color: var(--color-on-error-container); }

@@ -9,6 +9,7 @@ import com.logitrack.repository.BodegaRepository;
 import com.logitrack.repository.ProductoRepository;
 import com.logitrack.repository.ProveedorRepository;
 import com.logitrack.exception.BadRequestException;
+import com.logitrack.exception.ResourceNotFoundException;
 import com.logitrack.service.TorreControlService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpHeaders;
@@ -36,6 +37,23 @@ public class OrdenCompraController {
 
     @Autowired
     private ProductoRepository productoRepository;
+
+    @Autowired
+    private com.logitrack.repository.OrdenCompraRepository ordenCompraRepository;
+
+    @GetMapping // Listado de órdenes para el módulo frontend de la Torre de Control
+    public ResponseEntity<List<OrdenCompra>> listar(@RequestParam(required = false) EstadoOrden estado) {
+        List<OrdenCompra> ordenes = (estado != null)
+                ? ordenCompraRepository.findByEstado(estado)
+                : ordenCompraRepository.findAll();
+        return ResponseEntity.ok(ordenes);
+    }
+
+    @GetMapping("/{id}") // Detalle de una orden para el frontend
+    public ResponseEntity<OrdenCompra> obtenerPorId(@PathVariable Long id) {
+        return ResponseEntity.ok(ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new com.logitrack.exception.ResourceNotFoundException("Orden de compra no encontrada")));
+    }
 
     @PostMapping // El rol AGENTE y ADMIN pueden crear órdenes en BORRADOR [10]
     public ResponseEntity<OrdenCompra> crearOrden(@RequestBody DraftOrderRequest request) {
@@ -92,7 +110,14 @@ public class OrdenCompraController {
 
     @GetMapping("/{id}/pdf") // ADMIN y EMPLEADO descargan y previsualizan el archivo PDF [9, 10]
     public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
-        byte[] pdfData = service.obtenerPdfOrden(id);
+        byte[] pdfData;
+        try {
+            pdfData = service.obtenerPdfOrden(id);
+        } catch (ResourceNotFoundException e) {
+            // Auto-generar PDF si no existe
+            service.generarPdfOrden(id);
+            pdfData = service.obtenerPdfOrden(id);
+        }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);
         headers.setContentDispositionFormData("filename", "orden_" + id + ".pdf");

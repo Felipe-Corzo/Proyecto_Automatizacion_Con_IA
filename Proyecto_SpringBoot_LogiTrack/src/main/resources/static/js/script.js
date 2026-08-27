@@ -1891,3 +1891,760 @@ function initRegistroEmpleadoModal() {
 }
 
 document.addEventListener('DOMContentLoaded', cargarAuditorias);
+
+/* ============================================================================
+   Órdenes de Compra (listado + filtros + modal crear + cambio estado + PDF)
+   ============================================================================ */
+let todasLasOrdenes = [];
+let ordenesPaginacion = null;
+
+async function cargarOrdenes() {
+  const tbody = document.getElementById('ordenes-tbody');
+  if (!tbody) return;
+  protegerRuta();
+
+  try {
+    const raw = await apiFetch('/api/ordenes');
+    todasLasOrdenes = Array.isArray(raw) ? raw : [];
+    await cargarProductosParaOrden();
+    await cargarProveedoresParaOrden();
+    await cargarBodegasParaOrden();
+    iniciarPaginacionOrdenes();
+    initEventosFiltroOrdenes();
+    initCrearOrdenForm();
+  } catch (err) {
+    console.error('Error cargando órdenes:', err);
+    UIKit.toast('Error al cargar órdenes', 'error');
+  }
+}
+
+async function cargarProductosParaOrden() {
+  const select = document.getElementById('orden-producto');
+  if (!select) return;
+  try {
+    const raw = await apiFetch('/api/productos');
+    const productos = Array.isArray(raw) ? raw : (raw?.content || []);
+    select.innerHTML = '<option value="" disabled selected>Selecciona un producto...</option>' +
+      productos.map(p => `<option value="${p.id}">${p.nombre} (PRD-${p.id})</option>`).join('');
+  } catch (err) {
+    console.error('Error cargando productos para orden:', err);
+  }
+}
+
+async function cargarProveedoresParaOrden() {
+  const select = document.getElementById('orden-proveedor');
+  if (!select) return;
+  try {
+    const raw = await apiFetch('/api/usuarios');
+    const usuarios = Array.isArray(raw) ? raw : (raw?.content || []);
+    select.innerHTML = '<option value="" disabled selected>Selecciona un proveedor...</option>' +
+      usuarios.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+  } catch (err) {
+    console.error('Error cargando proveedores para orden:', err);
+  }
+}
+
+async function cargarBodegasParaOrden() {
+  const select = document.getElementById('orden-bodega-destino');
+  if (!select) return;
+  try {
+    const raw = await apiFetch('/api/bodegas');
+    const bodegas = Array.isArray(raw) ? raw : (raw?.content || []);
+    select.innerHTML = '<option value="" disabled selected>Selecciona una bodega...</option>' +
+      bodegas.map(b => `<option value="${b.id}">${b.nombre}</option>`).join('');
+  } catch (err) {
+    console.error('Error cargando bodegas para orden:', err);
+  }
+}
+
+function iniciarPaginacionOrdenes() {
+  const tbody = document.getElementById('ordenes-tbody');
+  const emptyState = document.getElementById('ordenes-empty-state');
+  if (!tbody) return;
+
+  const searchInputDesktop = document.getElementById('orden-search-desktop');
+  const searchInputMobile = document.getElementById('orden-search-mobile');
+  const estadoSelect = document.getElementById('orden-estado-filter');
+  const soloBorradorCheck = document.getElementById('orden-solo-borrador-filter');
+
+  const query = (searchInputDesktop?.value || searchInputMobile?.value || '').toLowerCase().trim();
+  const estado = estadoSelect?.value || '';
+  const soloBorrador = soloBorradorCheck?.checked;
+
+  const filtradas = todasLasOrdenes.filter((o) => {
+    const oIdStr = `ord-${o.id}`.toLowerCase();
+    const oProducto = (o.producto?.nombre || '').toLowerCase();
+    const oProveedor = (o.proveedor?.username || o.proveedor?.nombre || '').toLowerCase();
+    const oBodega = (o.bodegaDestino?.nombre || '').toLowerCase();
+    const coincideBusqueda = !query || oIdStr.includes(query) || oProducto.includes(query) || oProveedor.includes(query) || oBodega.includes(query);
+    const coincideEstado = !estado || o.estado === estado;
+    const coincideBorrador = !soloBorrador || o.estado === 'BORRADOR';
+    return coincideBusqueda && coincideEstado && coincideBorrador;
+  });
+
+  if (filtradas.length === 0) {
+    tbody.innerHTML = '';
+    if (emptyState) emptyState.style.display = 'block';
+    const pagination = document.getElementById('ordenes-pagination');
+    if (pagination) pagination.style.display = 'none';
+    return;
+  }
+
+  if (emptyState) emptyState.style.display = 'none';
+  const pagination = document.getElementById('ordenes-pagination');
+  if (pagination) pagination.style.display = '';
+
+  if (ordenesPaginacion) ordenesPaginacion = null;
+  ordenesPaginacion = initPaginacion({
+    data: filtradas,
+    pageSize: 5,
+    renderFn: (slice) => renderOrdenes(slice),
+    infoId: 'ordenes-pagination-info',
+    prevBtnId: 'ordenes-prev-btn',
+    nextBtnId: 'ordenes-next-btn',
+    pageNumbersId: 'ordenes-page-numbers',
+  });
+}
+
+function initEventosFiltroOrdenes() {
+  const searchDesktop = document.getElementById('orden-search-desktop');
+  const searchMobile = document.getElementById('orden-search-mobile');
+  const estadoSelect = document.getElementById('orden-estado-filter');
+  const soloBorradorCheck = document.getElementById('orden-solo-borrador-filter');
+
+  const handler = () => iniciarPaginacionOrdenes();
+
+  searchDesktop?.addEventListener('input', handler);
+  searchMobile?.addEventListener('input', handler);
+  estadoSelect?.addEventListener('change', handler);
+  soloBorradorCheck?.addEventListener('change', handler);
+}
+
+function renderOrdenes(ordenes) {
+  const tbody = document.getElementById('ordenes-tbody');
+  if (!tbody) return;
+
+  if (ordenes.length === 0) {
+    tbody.innerHTML = '';
+    return;
+  }
+
+  const usuario = getUsuarioActual();
+  const esAdmin = usuario && usuario.rol === 'ADMIN';
+
+  const badgeClass = {
+    BORRADOR: 'status-badge--warning',
+    APROBADA: 'status-badge--info',
+    RECIBIDA: 'status-badge--success',
+    CANCELADA: 'status-badge--danger'
+  };
+
+  tbody.innerHTML = ordenes.map((o) => {
+    const total = o.precioUnitario ? Number(o.precioUnitario) * o.cantidad : 0;
+    const badge = badgeClass[o.estado] || '';
+    const puedeCambiarEstado = esAdmin && (o.estado === 'BORRADOR' || o.estado === 'APROBADA');
+    const siguientesEstados = {
+      BORRADOR: ['APROBADA', 'CANCELADA'],
+      APROBADA: ['RECIBIDA', 'CANCELADA'],
+      RECIBIDA: [],
+      CANCELADA: []
+    };
+    const opcionesEstado = (siguientesEstados[o.estado] || []).map(e => `<option value="${e}">${e}</option>`).join('');
+
+    return `
+    <tr data-id="${o.id}" data-estado="${o.estado}">
+      <td class="metric-cell__value">ORD-${o.id}</td>
+      <td class="product-cell__name">${o.producto?.nombre || '-'}</td>
+      <td>${o.proveedor?.username || o.proveedor?.nombre || '-'}</td>
+      <td class="is-right"><span class="metric-cell__value">${o.cantidad}</span></td>
+      <td class="is-right"><span class="metric-cell__value">$${Number(o.precioUnitario || 0).toFixed(2)}</span></td>
+      <td class="is-right"><span class="metric-cell__value">$${total.toFixed(2)}</span></td>
+      <td><span class="status-badge ${badge}">${o.estado}</span></td>
+      <td>${o.bodegaDestino?.nombre || '-'}</td>
+      <td class="is-center">
+        <div class="row-actions row-actions--center">
+          ${puedeCambiarEstado ? `
+            <div class="select-wrapper" style="width: auto;">
+              <select class="form-select form-select--sm estado-select" data-orden-id="${o.id}" aria-label="Cambiar estado">
+                <option value="">Cambiar a...</option>
+                ${opcionesEstado}
+              </select>
+              <span class="material-symbols-outlined">expand_more</span>
+            </div>
+          ` : ''}
+          ${esAdmin ? `
+            <button class="row-action-btn" type="button" data-action="pdf" data-orden-id="${o.id}" title="PDF">
+              <span class="material-symbols-outlined">picture_as_pdf</span>
+            </button>
+            <button class="row-action-btn" type="button" data-action="view-pdf" data-orden-id="${o.id}" title="Ver PDF">
+              <span class="material-symbols-outlined">visibility</span>
+            </button>
+          ` : ''}
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+
+  adjuntarEventosFilasOrden();
+}
+
+function adjuntarEventosFilasOrden() {
+  document.querySelectorAll('.estado-select').forEach((select) => {
+    select.addEventListener('change', async (e) => {
+      const nuevoEstado = e.target.value;
+      if (!nuevoEstado) return;
+      const ordenId = e.target.dataset.ordenId;
+      const orden = todasLasOrdenes.find(o => o.id == ordenId);
+      if (!orden) return;
+
+      const confirmado = await UIKit.confirmDialog({
+        title: 'Cambiar Estado de Orden',
+        message: `¿Cambiar la orden <strong>ORD-${ordenId}</strong> de <strong>${orden.estado}</strong> a <strong>${nuevoEstado}</strong>?`,
+        confirmText: 'Confirmar',
+        danger: nuevoEstado === 'CANCELADA'
+      });
+
+      if (!confirmado) {
+        e.target.value = '';
+        return;
+      }
+
+      try {
+        await apiFetch(`/api/ordenes/${ordenId}/estado`, {
+          method: 'PATCH',
+          body: JSON.stringify({ estado: nuevoEstado })
+        });
+        UIKit.toast('Estado actualizado correctamente', 'success');
+        cargarOrdenes();
+      } catch (err) {
+        UIKit.toast(err.message, 'error');
+        e.target.value = '';
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-action="pdf"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ordenId = btn.dataset.ordenId;
+      try {
+        const blob = await apiFetch(`/api/ordenes/${ordenId}/pdf`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `orden_${ordenId}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        UIKit.toast('PDF descargado correctamente', 'success');
+      } catch (err) {
+        UIKit.toast('Error al descargar PDF: ' + err.message, 'error');
+      }
+    });
+  });
+
+  document.querySelectorAll('[data-action="view-pdf"]').forEach((btn) => {
+    btn.addEventListener('click', async () => {
+      const ordenId = btn.dataset.ordenId;
+      const modal = document.getElementById('orden-ver-pdf-modal-backdrop');
+      const iframe = document.getElementById('orden-pdf-iframe');
+      const downloadLink = document.getElementById('orden-pdf-download-link');
+      if (!modal || !iframe) return;
+
+      document.getElementById('orden-ver-pdf-modal-title').textContent = `Previsualizar PDF - Orden ORD-${ordenId}`;
+      
+      try {
+        const blob = await apiFetch(`/api/ordenes/${ordenId}/pdf`, { responseType: 'blob' });
+        const url = window.URL.createObjectURL(blob);
+        iframe.src = url;
+        downloadLink.href = url;
+        downloadLink.download = `orden_${ordenId}.pdf`;
+      } catch (err) {
+        iframe.src = '';
+        downloadLink.href = '#';
+        UIKit.toast('Error cargando PDF: ' + err.message, 'error');
+      }
+      modal.classList.add('is-open');
+    });
+  });
+}
+
+function initCrearOrdenForm() {
+  const form = document.getElementById('orden-form');
+  if (!form) return;
+
+  const cantidadInput = document.getElementById('orden-cantidad');
+  const precioInput = document.getElementById('orden-precio-unitario');
+  const totalInput = document.getElementById('orden-total-estimado');
+
+  function actualizarTotal() {
+    const cantidad = Number(cantidadInput.value) || 0;
+    const precio = Number(precioInput.value) || 0;
+    totalInput.value = `$${(cantidad * precio).toFixed(2)}`;
+  }
+
+  cantidadInput?.addEventListener('input', actualizarTotal);
+  precioInput?.addEventListener('input', actualizarTotal);
+
+  form.addEventListener('submit', async (event) => {
+    event.preventDefault();
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+
+    const payload = {
+      proveedorId: Number(form.elements.proveedorId.value),
+      bodegaDestinoId: Number(form.elements.bodegaDestinoId.value),
+      detalles: [{
+        productoId: Number(form.elements.productoId.value),
+        cantidad: Number(form.elements.cantidad.value),
+        precioUnitario: Number(form.elements.precioUnitario.value)
+      }]
+    };
+
+    try {
+      await apiFetch('/api/ordenes', { method: 'POST', body: JSON.stringify(payload) });
+      document.getElementById('orden-modal-backdrop')?.classList.remove('is-open');
+      form.reset();
+      totalInput.value = '$0.00';
+      cargarOrdenes();
+      UIKit.toast('Orden creada en estado Borrador', 'success');
+    } catch (err) {
+      UIKit.toast(err.message, 'error');
+    }
+  });
+}
+
+document.getElementById('open-create-orden-modal-btn')?.addEventListener('click', () => {
+  const form = document.getElementById('orden-form');
+  if (form) form.reset();
+  document.getElementById('orden-total-estimado').value = '$0.00';
+  document.getElementById('orden-modal-title').textContent = 'Nueva Orden de Compra';
+  document.getElementById('orden-modal-backdrop')?.classList.add('is-open');
+});
+
+document.addEventListener('DOMContentLoaded', cargarOrdenes);
+
+/* ============================================================================
+   Torre de Control (KPIs + Resumen Diario + Alertas + Órdenes Recientes)
+   ============================================================================ */
+async function cargarTorreControl() {
+  const kpiContainer = document.getElementById('kpi-total-productos');
+  if (!kpiContainer) return;
+  protegerRuta();
+
+  try {
+    await Promise.all([
+      cargarKpisTorreControl(),
+      cargarResumenDiario(),
+      cargarAlertasCobertura(),
+      cargarOrdenesRecientes()
+    ]);
+  } catch (err) {
+    console.error('Error cargando Torre de Control:', err);
+  }
+}
+
+async function cargarKpisTorreControl() {
+  try {
+    const kpis = await apiFetch('/api/kpis');
+    document.getElementById('kpi-total-productos').textContent = kpis.totalProductos;
+    document.getElementById('kpi-productos-riesgo').textContent = kpis.productosEnRiesgo;
+    document.getElementById('kpi-quiebres').textContent = kpis.productosEnQuiebre;
+    document.getElementById('kpi-valor-inventario').textContent = formatearMoneda(kpis.valorTotalInventario);
+    document.getElementById('kpi-ocupacion-promedio').textContent = kpis.ocupacionPromedioBodegas ? `${kpis.ocupacionPromedioBodegas}%` : '–';
+
+    const ordenes = await apiFetch('/api/ordenes?estado=BORRADOR');
+    const ordenesAprobadas = await apiFetch('/api/ordenes?estado=APROBADA');
+    const totalPendientes = (Array.isArray(ordenes) ? ordenes.length : 0) + (Array.isArray(ordenesAprobadas) ? ordenesAprobadas.length : 0);
+    document.getElementById('kpi-ordenes-pendientes').textContent = totalPendientes;
+  } catch (err) {
+    console.error('Error cargando KPIs torre control:', err);
+  }
+}
+
+async function cargarResumenDiario() {
+  const content = document.getElementById('resumen-diario-content');
+  if (!content) return;
+
+  try {
+    const resumen = await apiFetch('/api/resumenes-panel/ultimo');
+    if (!resumen || !resumen.contenidoJson) {
+      content.innerHTML = `
+        <div class="resumen-empty">
+          <span class="material-symbols-outlined">description</span>
+          <p>No hay resumen diario disponible.</p>
+          <p class="cell-muted">El agente publicará el resumen automáticamente.</p>
+        </div>`;
+      return;
+    }
+
+    const data = JSON.parse(resumen.contenidoJson);
+    const fecha = new Date(resumen.fecha).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    let html = `
+      <div class="resumen-diario">
+        <div class="resumen-header">
+          <span class="material-symbols-outlined">calendar_today</span>
+          <strong>${fecha.charAt(0).toUpperCase() + fecha.slice(1)}</strong>
+        </div>
+        <div class="resumen-section">
+          <h4><span class="material-symbols-outlined">summarize</span> Resumen Ejecutivo</h4>
+          <p>${data.narrativa || 'Sin narrativa disponible'}</p>
+        </div>`;
+
+    if (data.alertas && data.alertas.length > 0) {
+      html += `
+        <div class="resumen-section">
+          <h4><span class="material-symbols-outlined">warning</span> Alertas Críticas</h4>
+          <ul>`;
+      data.alertas.forEach(a => { html += `<li>${a}</li>`; });
+      html += `</ul></div>`;
+    }
+
+    if (data.accionesSugeridas && data.accionesSugeridas.length > 0) {
+      html += `
+        <div class="resumen-section">
+          <h4><span class="material-symbols-outlined">lightbulb</span> Acciones Sugeridas</h4>
+          <ul>`;
+      data.accionesSugeridas.forEach(a => { html += `<li>${a}</li>`; });
+      html += `</ul></div>`;
+    }
+
+    html += `</div>`;
+    content.innerHTML = html;
+
+  } catch (err) {
+    console.error('Error cargando resumen diario:', err);
+    content.innerHTML = `
+      <div class="resumen-empty">
+        <span class="material-symbols-outlined">error_outline</span>
+        <p>Error al cargar el resumen diario.</p>
+      </div>`;
+  }
+}
+
+async function cargarAlertasCobertura() {
+  const tbody = document.getElementById('alertas-cobertura-tbody');
+  const emptyState = document.getElementById('alertas-empty-state');
+  if (!tbody) return;
+
+  try {
+    const productos = await apiFetch('/api/productos');
+    const inventarios = await apiFetch('/api/bodegas/stock');
+
+    const stockPorProducto = {};
+    if (Array.isArray(inventarios)) {
+      inventarios.forEach(inv => {
+        const pid = inv.productoId || inv.producto?.id;
+        if (pid) {
+          stockPorProducto[pid] = (stockPorProducto[pid] || 0) + (inv.stockTotal || inv.stock || 0);
+        }
+      });
+    }
+
+    const alertas = (Array.isArray(productos) ? productos : (productos?.content || []))
+      .map(p => {
+        const stock = stockPorProducto[p.id] || 0;
+        const consumoPromedio = Math.max(1, Math.floor(stock * 0.1));
+        const diasCobertura = consumoPromedio > 0 ? Math.floor(stock / consumoPromedio) : 0;
+        return { producto: p, stock, consumoPromedio, diasCobertura };
+      })
+      .filter(a => a.diasCobertura <= 7 && a.stock > 0)
+      .sort((a, b) => a.diasCobertura - b.diasCobertura)
+      .slice(0, 10);
+
+    if (alertas.length === 0) {
+      tbody.innerHTML = '';
+      if (emptyState) emptyState.style.display = 'block';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    tbody.innerHTML = alertas.map(a => `
+      <tr class="${a.diasCobertura <= 2 ? 'is-critical' : ''}">
+        <td class="product-cell__name">${a.producto.nombre}</td>
+        <td class="is-right"><span class="metric-cell__value">${a.stock}</span></td>
+        <td class="is-right"><span class="metric-cell__value">${a.consumoPromedio}</span></td>
+        <td class="is-right"><span class="metric-cell__value metric-cell__value--danger">${a.diasCobertura} días</span></td>
+        <td><span class="status-badge ${a.diasCobertura <= 2 ? 'status-badge--danger' : 'status-badge--warning'}">${a.diasCobertura <= 2 ? 'Crítico' : 'Riesgo'}</span></td>
+        <td class="is-center">
+          <button class="row-action-btn" type="button" data-action="crear-orden" data-producto-id="${a.producto.id}" data-producto-nombre="${a.producto.nombre}" title="Crear orden">
+            <span class="material-symbols-outlined">add_shopping_cart</span>
+          </button>
+        </td>
+      </tr>
+    `).join('');
+
+    adjuntarEventosAlertasCobertura();
+
+    renderCoberturaBarChart(alertas);
+  } catch (err) {
+    console.error('Error cargando alertas de cobertura:', err);
+  }
+}
+
+function renderCoberturaBarChart(alertas) {
+  const contenedor = document.getElementById('cobertura-bar-chart');
+  if (!contenedor) return;
+  contenedor.innerHTML = '';
+
+  if (!alertas.length) {
+    contenedor.innerHTML = '<div class="chart-empty">Sin alertas de cobertura</div>';
+    return;
+  }
+
+  const maxDias = Math.max(...alertas.map(a => a.diasCobertura), 1);
+
+  alertas.slice().reverse().forEach((a) => {
+    const porcentaje = Math.round((a.diasCobertura / 30) * 100);
+    const fillClass = a.diasCobertura <= 2 ? ' chart-bar__fill--danger' : ' chart-bar__fill--warning';
+    const div = document.createElement('div');
+    div.className = 'chart-bar';
+    div.innerHTML = `
+      <div class="chart-bar__fill${fillClass}" style="height:${porcentaje}%; --bar-height:${porcentaje}%;">
+        <span class="chart-bar__tooltip">${a.diasCobertura}d</span>
+      </div>
+      <span class="chart-bar__label" title="${a.producto.nombre}">${a.producto.nombre.length > 15 ? a.producto.nombre.slice(0, 12) + '...' : a.producto.nombre}</span>`;
+    contenedor.appendChild(div);
+  });
+}
+
+function adjuntarEventosAlertasCobertura() {
+  document.querySelectorAll('[data-action="crear-orden"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const productoId = btn.dataset.productoId;
+      const productoNombre = btn.dataset.productoNombre;
+      window.location.href = `ordenes.html?producto=${productoId}`;
+    });
+  });
+}
+
+async function cargarOrdenesRecientes() {
+  const tbody = document.getElementById('ordenes-recientes-tbody');
+  const emptyState = document.getElementById('ordenes-recientes-empty-state');
+  if (!tbody) return;
+
+  try {
+    const raw = await apiFetch('/api/ordenes');
+    const ordenes = Array.isArray(raw) ? raw : [];
+    const recientes = ordenes
+      .sort((a, b) => new Date(b.fechaCreacion) - new Date(a.fechaCreacion))
+      .slice(0, 10);
+
+    if (recientes.length === 0) {
+      tbody.innerHTML = '';
+      if (emptyState) emptyState.style.display = 'block';
+      return;
+    }
+
+    if (emptyState) emptyState.style.display = 'none';
+
+    const badgeClass = {
+      BORRADOR: 'status-badge--warning',
+      APROBADA: 'status-badge--info',
+      RECIBIDA: 'status-badge--success',
+      CANCELADA: 'status-badge--danger'
+    };
+
+    tbody.innerHTML = recientes.map(o => {
+      const total = o.precioUnitario ? Number(o.precioUnitario) * o.cantidad : 0;
+      const badge = badgeClass[o.estado] || '';
+      return `
+        <tr>
+          <td class="metric-cell__value">ORD-${o.id}</td>
+          <td class="product-cell__name">${o.producto?.nombre || '-'}</td>
+          <td>${o.proveedor?.username || o.proveedor?.nombre || '-'}</td>
+          <td class="is-right"><span class="metric-cell__value">$${total.toFixed(2)}</span></td>
+          <td><span class="status-badge ${badge}">${o.estado}</span></td>
+          <td class="cell-muted">${o.fechaCreacion ? new Date(o.fechaCreacion).toLocaleDateString('es-CO') : '-'}</td>
+          <td class="is-center">
+            <div class="row-actions row-actions--center">
+              <button class="row-action-btn" type="button" data-action="view-pdf" data-orden-id="${o.id}" title="Ver PDF">
+                <span class="material-symbols-outlined">visibility</span>
+              </button>
+            </div>
+          </td>
+        </tr>`;
+    }).join('');
+
+    document.querySelectorAll('#ordenes-recientes-tbody [data-action="view-pdf"]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const ordenId = btn.dataset.ordenId;
+        const modal = document.getElementById('orden-ver-pdf-modal-backdrop');
+        const iframe = document.getElementById('orden-pdf-iframe');
+        const downloadLink = document.getElementById('orden-pdf-download-link');
+        if (!modal || !iframe) return;
+
+        document.getElementById('orden-ver-pdf-modal-title').textContent = `Previsualizar PDF - Orden ORD-${ordenId}`;
+        
+        try {
+          const blob = await apiFetch(`/api/ordenes/${ordenId}/pdf`, { responseType: 'blob' });
+          const url = window.URL.createObjectURL(blob);
+          iframe.src = url;
+          downloadLink.href = url;
+          downloadLink.download = `orden_${ordenId}.pdf`;
+        } catch (err) {
+          iframe.src = '';
+          downloadLink.href = '#';
+          UIKit.toast('Error cargando PDF: ' + err.message, 'error');
+        }
+        modal.classList.add('is-open');
+      });
+    });
+  } catch (err) {
+    console.error('Error cargando órdenes recientes:', err);
+  }
+}
+
+document.getElementById('ver-resumen-completo-btn')?.addEventListener('click', async () => {
+  const modal = document.getElementById('resumen-completo-modal-backdrop');
+  const body = document.getElementById('resumen-completo-modal-body');
+  if (!modal || !body) return;
+
+  body.innerHTML = '<div class="resumen-loading"><span class="material-symbols-outlined">sync</span><p>Cargando...</p></div>';
+  modal.classList.add('is-open');
+
+  try {
+    const resumen = await apiFetch('/api/resumenes-panel/ultimo');
+    if (!resumen || !resumen.contenidoJson) {
+      body.innerHTML = '<p class="cell-muted">No hay resumen disponible.</p>';
+      return;
+    }
+
+    const data = JSON.parse(resumen.contenidoJson);
+    const fecha = new Date(resumen.fecha).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+
+    let html = `
+      <div class="resumen-diario-completo">
+        <div class="resumen-header" style="margin-bottom: 1.5rem; padding-bottom: 1rem; border-bottom: 1px solid var(--color-border);">
+          <span class="material-symbols-outlined" style="font-size: 28px; vertical-align: middle;">calendar_today</span>
+          <strong style="font-size: 1.125rem; margin-left: 0.5rem;">${fecha.charAt(0).toUpperCase() + fecha.slice(1)}</strong>
+        </div>
+        <div class="resumen-section" style="margin-bottom: 1.5rem;">
+          <h4 style="margin-bottom: 0.5rem;"><span class="material-symbols-outlined" style="vertical-align: middle;">summarize</span> Resumen Ejecutivo</h4>
+          <p style="line-height: 1.6; white-space: pre-wrap;">${data.narrativa || 'Sin narrativa disponible'}</p>
+        </div>`;
+
+    if (data.alertas && data.alertas.length > 0) {
+      html += `
+        <div class="resumen-section" style="margin-bottom: 1.5rem;">
+          <h4 style="margin-bottom: 0.5rem;"><span class="material-symbols-outlined" style="vertical-align: middle;">warning</span> Alertas Críticas</h4>
+          <ul style="padding-left: 1.25rem; line-height: 1.8;">`;
+      data.alertas.forEach(a => { html += `<li>${a}</li>`; });
+      html += `</ul></div>`;
+    }
+
+    if (data.accionesSugeridas && data.accionesSugeridas.length > 0) {
+      html += `
+        <div class="resumen-section">
+          <h4 style="margin-bottom: 0.5rem;"><span class="material-symbols-outlined" style="vertical-align: middle;">lightbulb</span> Acciones Sugeridas</h4>
+          <ul style="padding-left: 1.25rem; line-height: 1.8;">`;
+      data.accionesSugeridas.forEach(a => { html += `<li>${a}</li>`; });
+      html += `</ul></div>`;
+    }
+
+    html += `</div>`;
+    body.innerHTML = html;
+  } catch (err) {
+    console.error('Error cargando resumen completo:', err);
+    body.innerHTML = '<p class="cell-muted">Error al cargar el resumen.</p>';
+  }
+});
+
+document.getElementById('torre-refresh-btn')?.addEventListener('click', async () => {
+  const btn = document.getElementById('torre-refresh-btn');
+  if (btn.classList.contains('is-loading')) return;
+  btn.classList.add('is-loading');
+  btn.disabled = true;
+  try {
+    await cargarTorreControl();
+  } finally {
+    btn.classList.remove('is-loading');
+    btn.disabled = false;
+  }
+});
+
+document.addEventListener('DOMContentLoaded', cargarTorreControl);
+
+/* ============================================================================
+   Generación de PDF con marca de agua (pdfmake)
+   ============================================================================ */
+function generarPdfOrdenConMarcaAgua(orden, incluirMarcaAgua = true) {
+  if (typeof pdfMake === 'undefined') {
+    console.warn('pdfMake no está cargado, usando PDF del backend');
+    return null;
+  }
+
+  const total = Number(orden.precioUnitario || 0) * Number(orden.cantidad || 0);
+  const fecha = orden.fechaCreacion ? new Date(orden.fechaCreacion).toLocaleString('es-CO') : new Date().toLocaleString('es-CO');
+
+  const docDefinition = {
+    pageSize: 'A4',
+    pageMargins: [40, 60, 40, 60],
+    watermark: incluirMarcaAgua ? { text: 'LogiTrack', color: 'gray', opacity: 0.08, bold: true, fontSize: 80 } : null,
+    content: [
+      { text: 'ORDEN DE COMPRA', style: 'header' },
+      { text: `ORD-${orden.id}`, style: 'subheader' },
+      { canvas: [{ type: 'line', x1: 0, y1: 0, x2: 515, y2: 0, lineWidth: 1 }] },
+      { text: 'Detalles de la Orden', style: 'sectionHeader' },
+      {
+        style: 'tableExample',
+        table: {
+          widths: ['*', 'auto', 'auto', 'auto'],
+          body: [
+            [{ text: 'Campo', style: 'tableHeader' }, { text: 'Valor', style: 'tableHeader' }, {}, {}],
+            ['Producto', orden.producto?.nombre || '-', '', ''],
+            ['Proveedor', orden.proveedor?.username || orden.proveedor?.nombre || '-', '', ''],
+            ['Bodega Destino', orden.bodegaDestino?.nombre || '-', '', ''],
+            ['Cantidad', String(orden.cantidad), '', ''],
+            ['Precio Unitario', `$${Number(orden.precioUnitario || 0).toFixed(2)}`, '', ''],
+            ['Total', `$${total.toFixed(2)}`, '', ''],
+            ['Estado', orden.estado, '', ''],
+            ['Fecha Creación', fecha, '', ''],
+            ['Creado por', orden.creadoPor || '-', '', '']
+          ]
+        },
+        layout: 'lightHorizontalLines'
+      },
+      { text: '\n\n', margin: [0, 20, 0, 0] },
+      { text: 'LogiTrack - Sistema de Gestión de Almacenes', style: 'footer', alignment: 'center' },
+      { text: `Generado el ${new Date().toLocaleString('es-CO')}`, style: 'footer', alignment: 'center' }
+    ],
+    styles: {
+      header: { fontSize: 22, bold: true, color: '#1a1a2e', margin: [0, 0, 0, 4] },
+      subheader: { fontSize: 14, color: '#4a4a6a', margin: [0, 0, 0, 16] },
+      sectionHeader: { fontSize: 14, bold: true, color: '#1a1a2e', margin: [0, 16, 0, 8] },
+      tableHeader: { bold: true, fontSize: 11, color: '#1a1a2e', fillColor: '#f0f0f5' },
+      footer: { fontSize: 9, color: '#888', margin: [0, 8, 0, 0] }
+    },
+    defaultStyle: { font: 'Roboto', fontSize: 11 }
+  };
+
+  return pdfMake.createPdf(docDefinition);
+}
+
+async function descargarPdfConMarcaAgua(ordenId, incluirMarcaAgua = true) {
+  try {
+    const orden = await apiFetch(`/api/ordenes/${ordenId}`);
+    const pdfDoc = generarPdfOrdenConMarcaAgua(orden, incluirMarcaAgua);
+
+    if (pdfDoc) {
+      pdfDoc.download(`orden_${ordenId}.pdf`);
+      UIKit.toast('PDF generado y descargado', 'success');
+    } else {
+      const blob = await apiFetch(`/api/ordenes/${ordenId}/pdf`);
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `orden_${ordenId}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      UIKit.toast('PDF descargado desde el servidor', 'success');
+    }
+  } catch (err) {
+    console.error('Error generando PDF:', err);
+    UIKit.toast('Error al generar PDF: ' + err.message, 'error');
+  }
+}
