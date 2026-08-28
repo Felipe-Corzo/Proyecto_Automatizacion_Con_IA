@@ -11,6 +11,8 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "ordenes_compra", schema = "proyecto")
@@ -64,4 +66,9 @@ public class OrdenCompra {
     @JsonIgnore // Evitar serialización en respuestas JSON
     @Column(name = "pdf_fecha_generacion")
     private LocalDateTime pdfFechaGeneracion;
+
+    @OneToMany(mappedBy = "ordenCompra", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.EAGER)
+    @OrderBy("id ASC")
+    @com.fasterxml.jackson.annotation.JsonManagedReference
+    private List<OrdenCompraDetalle> detalles = new ArrayList<>();
 }

@@ -9,6 +9,8 @@ import org.springframework.stereotype.Service;
 
 import java.io.ByteArrayOutputStream;
 import java.awt.Color;
+import java.math.BigDecimal;
+import java.util.List;
 
 @Service
 public class PdfGeneratorService {
@@ -95,10 +97,27 @@ public class PdfGeneratorService {
             table.addCell("Precio Unitario");
             table.addCell("Total");
 
-            table.addCell(orden.getProducto().getNombre());
-            table.addCell(String.valueOf(orden.getCantidad()));
-            table.addCell("$" + orden.getPrecioUnitario().toString());
-            table.addCell("$" + orden.getTotal().toString());
+            List<com.logitrack.model.OrdenCompraDetalle> detalles = orden.getDetalles();
+            if (detalles == null || detalles.isEmpty()) {
+                com.logitrack.model.OrdenCompraDetalle detalle = new com.logitrack.model.OrdenCompraDetalle();
+                detalle.setProducto(orden.getProducto());
+                detalle.setCantidad(orden.getCantidad());
+                detalle.setPrecioUnitario(orden.getPrecioUnitario());
+                detalles = List.of(detalle);
+            }
+            for (com.logitrack.model.OrdenCompraDetalle detalle : detalles) {
+                table.addCell(detalle.getProducto().getNombre());
+                table.addCell(String.valueOf(detalle.getCantidad()));
+                table.addCell("$" + detalle.getPrecioUnitario());
+                table.addCell("$" + detalle.getPrecioUnitario().multiply(BigDecimal.valueOf(detalle.getCantidad())));
+            }
+            PdfPCell totalLabel = new PdfPCell(new Phrase("TOTAL DE LA ORDEN", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11)));
+            totalLabel.setColspan(3);
+            totalLabel.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            table.addCell(totalLabel);
+            PdfPCell totalValue = new PdfPCell(new Phrase("$" + orden.getTotal(), FontFactory.getFont(FontFactory.HELVETICA_BOLD, 11)));
+            totalValue.setHorizontalAlignment(Element.ALIGN_RIGHT);
+            table.addCell(totalValue);
 
             document.add(table);
             document.close();

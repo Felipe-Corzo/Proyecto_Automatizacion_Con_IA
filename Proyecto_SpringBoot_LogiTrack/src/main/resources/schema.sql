@@ -100,6 +100,14 @@ CREATE TABLE IF NOT EXISTS ordenes_compra (
     FOREIGN KEY (bodega_destino_id) REFERENCES bodegas(id)
 );
 
+CREATE TABLE IF NOT EXISTS orden_compra_detalles (
+    id BIGSERIAL PRIMARY KEY,
+    orden_compra_id BIGINT NOT NULL REFERENCES ordenes_compra(id) ON DELETE CASCADE,
+    producto_id BIGINT NOT NULL REFERENCES productos(id),
+    cantidad INT NOT NULL CHECK (cantidad > 0),
+    precio_unitario DECIMAL(10, 2) NOT NULL
+);
+
 -- Auditoría
 CREATE TABLE IF NOT EXISTS auditorias (
     id BIGSERIAL PRIMARY KEY,

@@ -31,6 +31,9 @@ public class TorreControlServiceTest {
     @Mock
     private OrdenCompraRepository ordenCompraRepository;
 
+    @Mock
+    private MovimientoInventarioService movimientoService;
+
     @InjectMocks
     private TorreControlServiceImpl torreControlService;
 
@@ -130,6 +133,6 @@ public class TorreControlServiceTest {
         assertEquals(EstadoOrden.RECIBIDA, resultado.getEstado(), "El estado de la orden debe cambiar a RECIBIDA");
         
         // Verificar que el repositorio de movimientos fue llamado exactamente una vez para guardar la ENTRADA de inventario
-        verify(movimientoRepository, times(1)).save(any());
+        verify(movimientoService, times(1)).registrarMovimiento(any());
     }
 }

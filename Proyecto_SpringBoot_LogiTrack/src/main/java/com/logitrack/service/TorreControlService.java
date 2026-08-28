@@ -10,6 +10,7 @@ public interface TorreControlService {
     CoberturaDTO calcularCoberturaProducto(Producto producto);
     boolean evaluarProductoEnRiesgo(Producto producto);
     OrdenCompra crearOrdenCompra(OrdenCompra orden);
+    OrdenCompra actualizarOrdenCompra(Long id, OrdenCompra ordenActualizada);
     OrdenCompra cambiarEstadoOrden(Long id, EstadoOrden nuevoEstado);
     void generarPdfOrden(Long id);
     byte[] obtenerPdfOrden(Long id);

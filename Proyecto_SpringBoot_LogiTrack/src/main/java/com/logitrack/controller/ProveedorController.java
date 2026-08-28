@@ -16,9 +16,18 @@ import java.util.List;
 public class ProveedorController {
 
     private final ProductoRepository productoRepository;
+    private final ProveedorRepository proveedorRepository;
 
-    public ProveedorController(ProductoRepository productoRepository) {
+    public ProveedorController(ProductoRepository productoRepository, ProveedorRepository proveedorRepository) {
         this.productoRepository = productoRepository;
+        this.proveedorRepository = proveedorRepository;
+    }
+
+    @GetMapping
+    public ResponseEntity<List<Proveedor>> listar() {
+        return ResponseEntity.ok(proveedorRepository.findAll().stream()
+                .filter(proveedor -> Boolean.TRUE.equals(proveedor.getActivo()))
+                .toList());
     }
 
     @GetMapping("/by-product/{productoId}")

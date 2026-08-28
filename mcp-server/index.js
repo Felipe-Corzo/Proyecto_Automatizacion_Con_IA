@@ -94,7 +94,8 @@ function extractProductId(args) {
   return Number.isInteger(productId) && productId > 0 ? productId : null;
 }
 
-const server = new Server(
+function createServer() {
+  const server = new Server(
   {
     name: process.env.MCP_SERVER_NAME || 'logitrack-iq-mcp',
     version: process.env.MCP_SERVER_VERSION || '1.0.0',
@@ -310,6 +311,11 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
+  return server;
+}
+
+const server = createServer();
+
 async function main() {
   console.error('[MCP] Iniciando servidor LogiTrack IQ MCP...');
   console.error(`[MCP] Backend objetivo: ${SPRING_BOOT_BASE_URL}`);
@@ -332,7 +338,7 @@ async function main() {
   const ssePath = process.env.MCP_SSE_PATH || '/sse';
   const messagesPath = process.env.MCP_MESSAGES_PATH || '/messages';
   const sharedSecret = process.env.MCP_SHARED_SECRET;
-  let activeTransport = null;
+  const sessions = new Map();
 
   const requireMcpAuth = (request, response, next) => {
     if (!sharedSecret) {
@@ -354,22 +360,16 @@ async function main() {
   });
 
   app.get(ssePath, requireMcpAuth, async (request, response) => {
-    if (activeTransport) {
-      await activeTransport.close();
-    }
-
     const transport = new SSEServerTransport(messagesPath, response);
-    activeTransport = transport;
+    const sessionServer = createServer();
     transport.onclose = () => {
-      if (activeTransport === transport) {
-        activeTransport = null;
-      }
+      sessions.delete(transport.sessionId);
     };
 
     try {
-      await server.connect(transport);
+      await sessionServer.connect(transport);
+      sessions.set(transport.sessionId, { server: sessionServer, transport });
     } catch (error) {
-      activeTransport = null;
       console.error('[MCP] Error al abrir la conexión SSE:', error);
       if (!response.headersSent) {
         response.status(500).json({ error: 'No se pudo abrir la conexión MCP.' });
@@ -379,13 +379,14 @@ async function main() {
 
   app.post(messagesPath, requireMcpAuth, async (request, response) => {
     const sessionId = request.query.sessionId;
-    if (!activeTransport || activeTransport.sessionId !== sessionId) {
+    const session = sessions.get(sessionId);
+    if (!session) {
       response.status(400).send('Sesión MCP inválida o expirada.');
       return;
     }
 
     try {
-      await activeTransport.handlePostMessage(request, response);
+      await session.transport.handlePostMessage(request, response);
     } catch (error) {
       console.error('[MCP] Error al procesar mensaje SSE:', error);
       if (!response.headersSent) {

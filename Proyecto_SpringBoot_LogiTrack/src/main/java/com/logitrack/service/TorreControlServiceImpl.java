@@ -21,6 +21,9 @@ public class TorreControlServiceImpl implements TorreControlService {
     private MovimientoInventarioRepository movimientoRepository;
 
     @Autowired
+    private MovimientoInventarioService movimientoService;
+
+    @Autowired
     private OrdenCompraRepository ordenCompraRepository;
 
     @Autowired
@@ -76,13 +79,68 @@ public class TorreControlServiceImpl implements TorreControlService {
     @Override
     @Transactional
     public OrdenCompra crearOrdenCompra(OrdenCompra orden) {
-        if (orden.getCantidad() == null || orden.getCantidad() <= 0) { // Regla TDD: cantidad inválida [1, 5]
-            throw new BadRequestException("La cantidad de la orden de compra debe ser estrictamente mayor a cero.");
-        }
+        normalizarDetalles(orden);
         orden.setFechaCreacion(LocalDateTime.now());
         orden.setEstado(EstadoOrden.BORRADOR);
-        orden.setTotal(orden.getPrecioUnitario().multiply(BigDecimal.valueOf(orden.getCantidad())));
+        orden.setTotal(calcularTotal(orden));
         return ordenCompraRepository.save(orden);
+    }
+
+    @Override
+    @Transactional
+    public OrdenCompra actualizarOrdenCompra(Long id, OrdenCompra ordenActualizada) {
+        OrdenCompra existente = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden de compra no encontrada"));
+        if (existente.getEstado() != EstadoOrden.BORRADOR) {
+            throw new BadRequestException("Solo se pueden editar órdenes en estado BORRADOR.");
+        }
+        normalizarDetalles(ordenActualizada);
+        existente.setProveedor(ordenActualizada.getProveedor());
+        existente.setBodegaDestino(ordenActualizada.getBodegaDestino());
+        existente.getDetalles().clear();
+        for (OrdenCompraDetalle detalle : ordenActualizada.getDetalles()) {
+            detalle.setOrdenCompra(existente);
+            existente.getDetalles().add(detalle);
+        }
+        OrdenCompraDetalle primero = existente.getDetalles().get(0);
+        existente.setProducto(primero.getProducto());
+        existente.setCantidad(primero.getCantidad());
+        existente.setPrecioUnitario(primero.getPrecioUnitario());
+        existente.setTotal(calcularTotal(existente));
+        existente.setPdfData(null);
+        existente.setPdfFechaGeneracion(null);
+        return ordenCompraRepository.save(existente);
+    }
+
+    private void normalizarDetalles(OrdenCompra orden) {
+        if (orden.getDetalles() == null || orden.getDetalles().isEmpty()) {
+            if (orden.getProducto() == null || orden.getCantidad() == null || orden.getPrecioUnitario() == null
+                    || orden.getCantidad() <= 0) {
+                throw new BadRequestException("La orden debe contener al menos una línea válida.");
+            }
+            OrdenCompraDetalle detalle = new OrdenCompraDetalle();
+            detalle.setProducto(orden.getProducto());
+            detalle.setCantidad(orden.getCantidad());
+            detalle.setPrecioUnitario(orden.getPrecioUnitario());
+            orden.getDetalles().add(detalle);
+        }
+        for (OrdenCompraDetalle detalle : orden.getDetalles()) {
+            if (detalle == null || detalle.getProducto() == null || detalle.getCantidad() == null
+                    || detalle.getCantidad() <= 0 || detalle.getPrecioUnitario() == null) {
+                throw new BadRequestException("Cada línea requiere producto, cantidad y precio unitario válidos.");
+            }
+            detalle.setOrdenCompra(orden);
+        }
+        OrdenCompraDetalle primero = orden.getDetalles().get(0);
+        orden.setProducto(primero.getProducto());
+        orden.setCantidad(primero.getCantidad());
+        orden.setPrecioUnitario(primero.getPrecioUnitario());
+    }
+
+    private BigDecimal calcularTotal(OrdenCompra orden) {
+        return orden.getDetalles().stream()
+                .map(detalle -> detalle.getPrecioUnitario().multiply(BigDecimal.valueOf(detalle.getCantidad())))
+                .reduce(BigDecimal.ZERO, BigDecimal::add);
     }
 
     @Override
@@ -137,15 +195,24 @@ public class TorreControlServiceImpl implements TorreControlService {
             mov.setUsuario(usuario);
         }
 
-        MovimientoDetalle detalle = new MovimientoDetalle();
-        detalle.setProducto(orden.getProducto());
-        detalle.setCantidad(orden.getCantidad());
-        detalle.setMovimiento(mov);
-        
-        mov.setDetalles(List.of(detalle));
+        List<MovimientoDetalle> detalles = orden.getDetalles().stream().map(ordenDetalle -> {
+            MovimientoDetalle detalle = new MovimientoDetalle();
+            detalle.setProducto(ordenDetalle.getProducto());
+            detalle.setCantidad(ordenDetalle.getCantidad());
+            detalle.setMovimiento(mov);
+            return detalle;
+        }).toList();
+        if (detalles.isEmpty()) {
+            MovimientoDetalle detalle = new MovimientoDetalle();
+            detalle.setProducto(orden.getProducto());
+            detalle.setCantidad(orden.getCantidad());
+            detalle.setMovimiento(mov);
+            detalles = List.of(detalle);
+        }
+        mov.setDetalles(detalles);
 
         // El repositorio de movimientos de inventario persistirá la entrada
-        movimientoRepository.save(mov);
+            movimientoService.registrarMovimiento(mov);
     }
 
     @Override

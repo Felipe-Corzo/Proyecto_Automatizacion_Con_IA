@@ -219,17 +219,7 @@
     <form class="modal__body" id="orden-form" novalidate>
       <div class="form-grid-2">
         <div class="form-group">
-          <label class="form-label" for="orden-producto">Producto</label>
-          <div class="select-wrapper">
-            <select class="form-select" id="orden-producto" name="productoId" required>
-              <option value="" disabled selected>Selecciona un producto...</option>
-            </select>
-            <span class="material-symbols-outlined">expand_more</span>
-          </div>
-        </div>
-
-        <div class="form-group">
-          <label class="form-label" for="orden-proveedor">Proveedor</label>
+          <label class="form-label" for="orden-proveedor">Proveedor común</label>
           <div class="select-wrapper">
             <select class="form-select" id="orden-proveedor" name="proveedorId" required>
               <option value="" disabled selected>Selecciona un proveedor...</option>
@@ -237,9 +227,6 @@
             <span class="material-symbols-outlined">expand_more</span>
           </div>
         </div>
-      </div>
-
-      <div class="form-grid-2">
         <div class="form-group">
           <label class="form-label" for="orden-bodega-destino">Bodega Destino</label>
           <div class="select-wrapper">
@@ -249,19 +236,15 @@
             <span class="material-symbols-outlined">expand_more</span>
           </div>
         </div>
-
-        <div class="form-group">
-          <label class="form-label" for="orden-cantidad">Cantidad</label>
-          <input class="form-input form-input--mono" id="orden-cantidad" name="cantidad" type="number" min="1" value="1" required>
-        </div>
       </div>
 
       <div class="form-group">
-        <label class="form-label" for="orden-precio-unitario">Precio Unitario</label>
-        <div class="input-prefix">
-          <span class="input-prefix__symbol">$</span>
-          <input class="form-input form-input--mono" id="orden-precio-unitario" name="precioUnitario" type="number" min="0" step="0.01" placeholder="0.00" required>
-        </div>
+        <label class="form-label">Productos de la orden</label>
+        <div id="orden-detalles-list"></div>
+        <button class="toolbar-btn toolbar-btn--outline" type="button" id="orden-add-detail-btn">
+          <span class="material-symbols-outlined icon-sm">add</span>
+          Agregar producto
+        </button>
       </div>
 
       <div class="form-group">
@@ -274,7 +257,7 @@
       <button class="toolbar-btn toolbar-btn--outline" type="button" data-modal-dismiss>Cancelar</button>
       <button class="toolbar-btn toolbar-btn--primary" type="submit" form="orden-form">
         <span class="material-symbols-outlined icon-sm">save</span>
-        Crear Orden (Borrador)
+        <span id="orden-form-submit-label">Crear Orden (Borrador)</span>
       </button>
     </div>
   </div>

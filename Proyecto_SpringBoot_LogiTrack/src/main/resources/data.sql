@@ -20,7 +20,11 @@ INSERT INTO bodegas (id, nombre, ubicacion, capacidad, encargado_id) VALUES
 (3, 'Bodega Norte Cali', 'Avenida 6N # 22-00, Cali', 20000, 3),
 (4, 'Bodega Sur Barranquilla', 'Calle 30 # 8-50, Barranquilla', 15000, 5),
 (5, 'Bodega Occidente Pereira', 'Carrera 8 # 15-30, Pereira', 12000, 6)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    ubicacion = EXCLUDED.ubicacion,
+    capacidad = EXCLUDED.capacidad,
+    encargado_id = EXCLUDED.encargado_id;
 
 -- Proveedores (tabla suppliers)
 INSERT INTO suppliers (id, nombre, nit_rut, contacto_nombre, email, telefono, direccion, activo, dias_entrega) VALUES
@@ -28,8 +32,26 @@ INSERT INTO suppliers (id, nombre, nit_rut, contacto_nombre, email, telefono, di
 (2, 'TechSupply Colombia', '900234567-2', 'Ana Torres', 'a.torres@techsupply.co', '3102345678', 'Medellin, Colombia', true, 7),
 (3, 'Global Hardware SAS', '900345678-3', 'Luis Gomez', 'l.gomez@globalhw.com', '3203456789', 'Cali, Colombia', true, 10),
 (4, 'Office Solutions Ltda', '900456789-4', 'Maria Lopez', 'm.lopez@officesol.co', '3154567890', 'Barranquilla, Colombia', true, 3),
-(5, 'Industrial Parts Inc', '900567890-5', 'Jorge Ruiz', 'j.ruiz@indparts.com', '3125678901', 'Pereira, Colombia', false, 15)
-ON CONFLICT (id) DO NOTHING;
+(5, 'Industrial Parts Inc', '900567890-5', 'Jorge Ruiz', 'j.ruiz@indparts.com', '3125678901', 'Pereira, Colombia', false, 15),
+(6, 'Distribuidora Andina SA', '900678901-6', 'Patricia Vargas', 'p.vargas@distrandina.com', '3186789012', 'Bucaramanga, Colombia', true, 8),
+(7, 'ElectroComponentes del Pacifico', '900789012-7', 'Roberto Silva', 'r.silva@electropacifico.com', '3147890123', 'Cartagena, Colombia', true, 12),
+(8, 'Mundo Oficina Express', '900890123-8', 'Diana Herrera', 'd.herrera@mundooficina.co', '3118901234', 'Cucuta, Colombia', true, 4),
+(9, 'Redes y Conectividad Total', '900901234-9', 'Fernando Castro', 'f.castro@redesytotal.com', '3199012345', 'Santa Marta, Colombia', true, 6),
+(10, 'Suministros Industriales Unidos', '901012345-0', 'Gabriela Moreno', 'g.moreno@suminunidos.com', '3130123456', 'Ibague, Colombia', true, 9),
+(11, 'TechZone Distribution', '901123456-1', 'Andres Felipe', 'a.felipe@techzone.co', '3161234567', 'Manizales, Colombia', true, 5),
+(12, 'Hardware Solutions Premium', '901234567-2', 'Claudia Jimenez', 'c.jimenez@hardwaresol.com', '3172345678', 'Pasto, Colombia', false, 14),
+(13, 'Ofitec Global SAS', '901345678-3', 'Ricardo Pardo', 'r.pardo@ofitecglobal.com', '3103456789', 'Neiva, Colombia', true, 7),
+(14, 'Componentes Electronicos SA', '901456789-4', 'Sandra Milena', 's.milena@compelectronicos.co', '3124567890', 'Armenia, Colombia', true, 11),
+(15, 'Logistica y Suministros 360', '901567890-5', 'Oscar Gutierrez', 'o.gutierrez@logisumin360.com', '3185678901', 'Villavicencio, Colombia', true, 8)
+ON CONFLICT (id) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    nit_rut = EXCLUDED.nit_rut,
+    contacto_nombre = EXCLUDED.contacto_nombre,
+    email = EXCLUDED.email,
+    telefono = EXCLUDED.telefono,
+    direccion = EXCLUDED.direccion,
+    activo = EXCLUDED.activo,
+    dias_entrega = EXCLUDED.dias_entrega;
 
 -- Productos (con proveedor principal)
 INSERT INTO productos (id, nombre, categoria, stock, precio, proveedor_id) VALUES
@@ -168,7 +190,7 @@ ON CONFLICT (producto_id, bodega_id) DO UPDATE SET stock = EXCLUDED.stock;
 -- Resumen diario del panel (Torre de Control)
 INSERT INTO resumenes_panel (id, fecha, contenido_json, autor) VALUES
 (1, CURRENT_DATE, '{"narrativa": "Dia operativamente estable. Se recibieron 3 ordenes de compra (ORD-3, ORD-6, ORD-14) totalizando 6,400 USD en inventario nuevo. Las transferencias entre bodegas Bogota-Medellin y Cali-Barranquilla se completaron sin incidencias.", "alertas": ["Stock critico: Monitor Dell UltraSharp (8 und en Medellin, 0 en Bogota)", "Quiebre inminente: Silla Ergonomica Herman Miller (4 und, consumo 2/dia)", "Router Cisco Meraki solo 3 unidades, proveedor con 10 dias entrega"], "accionesSugeridas": ["Generar orden de reposicion para monitores (sugerido: 20 und a TechSupply)", "Crear orden urgente para sillas ergonomicas (proveedor Office Solutions, 3 dias)", "Evaluar proveedor alternativo para equipos de red (dias entrega > 7)"], "kpis": {"ordenesPendientes": 7, "valorPendiente": 28420, "productosRiesgo": 5, "quiebres": 2}}', 'agente_automatizado')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (fecha) DO UPDATE SET contenido_json = EXCLUDED.contenido_json, autor = EXCLUDED.autor;
 
 -- Ajustar secuencias para evitar conflictos de ID
 SELECT setval('proyecto.usuarios_id_seq', (SELECT COALESCE(MAX(id), 0) FROM proyecto.usuarios));

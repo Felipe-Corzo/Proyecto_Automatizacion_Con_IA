@@ -63,27 +63,27 @@ public class OrdenCompraController {
         if (request.detalles() == null || request.detalles().isEmpty()) {
             throw new BadRequestException("La orden debe contener al menos una línea de detalle.");
         }
-        if (request.detalles().size() > 1) {
-            throw new BadRequestException("El backend actual admite una sola línea por orden de compra.");
-        }
-        DraftOrderDetail detail = request.detalles().get(0);
-        if (detail == null || detail.productoId() == null || detail.cantidad() == null
-                || detail.precioUnitario() == null) {
-            throw new BadRequestException("Cada línea requiere productoId, cantidad y precioUnitario.");
-        }
-        Producto producto = productoRepository.findById(detail.productoId())
-                .orElseThrow(() -> new BadRequestException("El producto indicado no existe."));
         Proveedor proveedor = proveedorRepository.findById(request.proveedorId())
                 .orElseThrow(() -> new BadRequestException("El proveedor indicado no existe."));
         Bodega bodega = bodegaRepository.findById(request.bodegaDestinoId())
                 .orElseThrow(() -> new BadRequestException("La bodega indicada no existe."));
 
         OrdenCompra orden = new OrdenCompra();
-        orden.setProducto(producto);
         orden.setProveedor(proveedor);
         orden.setBodegaDestino(bodega);
-        orden.setCantidad(detail.cantidad());
-        orden.setPrecioUnitario(detail.precioUnitario());
+        for (DraftOrderDetail detail : request.detalles()) {
+            if (detail == null || detail.productoId() == null || detail.cantidad() == null
+                || detail.precioUnitario() == null) {
+            throw new BadRequestException("Cada línea requiere productoId, cantidad y precioUnitario.");
+            }
+            Producto producto = productoRepository.findById(detail.productoId())
+                .orElseThrow(() -> new BadRequestException("El producto indicado no existe."));
+            com.logitrack.model.OrdenCompraDetalle detalle = new com.logitrack.model.OrdenCompraDetalle();
+            detalle.setProducto(producto);
+            detalle.setCantidad(detail.cantidad());
+            detalle.setPrecioUnitario(detail.precioUnitario());
+            orden.getDetalles().add(detalle);
+        }
         return ResponseEntity.ok(service.crearOrdenCompra(orden));
     }
 
@@ -92,6 +92,36 @@ public class OrdenCompraController {
     }
 
     public record DraftOrderDetail(Long productoId, Integer cantidad, BigDecimal precioUnitario) {
+    }
+
+    @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<OrdenCompra> editarOrden(@PathVariable Long id, @RequestBody DraftOrderRequest request) {
+        if (request == null || request.proveedorId() == null || request.bodegaDestinoId() == null
+                || request.detalles() == null || request.detalles().isEmpty()) {
+            throw new BadRequestException("proveedorId, bodegaDestinoId y detalles son obligatorios.");
+        }
+        Proveedor proveedor = proveedorRepository.findById(request.proveedorId())
+                .orElseThrow(() -> new BadRequestException("El proveedor indicado no existe."));
+        Bodega bodega = bodegaRepository.findById(request.bodegaDestinoId())
+                .orElseThrow(() -> new BadRequestException("La bodega indicada no existe."));
+        OrdenCompra orden = new OrdenCompra();
+        orden.setProveedor(proveedor);
+        orden.setBodegaDestino(bodega);
+        for (DraftOrderDetail detail : request.detalles()) {
+            if (detail == null || detail.productoId() == null || detail.cantidad() == null
+                    || detail.precioUnitario() == null) {
+                throw new BadRequestException("Cada línea requiere productoId, cantidad y precioUnitario.");
+            }
+            Producto producto = productoRepository.findById(detail.productoId())
+                    .orElseThrow(() -> new BadRequestException("El producto indicado no existe."));
+            com.logitrack.model.OrdenCompraDetalle detalleEntidad = new com.logitrack.model.OrdenCompraDetalle();
+            detalleEntidad.setProducto(producto);
+            detalleEntidad.setCantidad(detail.cantidad());
+            detalleEntidad.setPrecioUnitario(detail.precioUnitario());
+            orden.getDetalles().add(detalleEntidad);
+        }
+        return ResponseEntity.ok(service.actualizarOrdenCompra(id, orden));
     }
 
     @PatchMapping("/{id}/estado") // Restringido: Solo el ADMIN puede autorizar o recibir transiciones [10]

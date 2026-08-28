@@ -446,7 +446,6 @@ function renderBodegas(bodegas) {
 
   // Botones de acción según el rol
   const botonInventario = `<button class="row-action-btn" type="button" data-action="inventario" title="Ver inventario"><span class="material-symbols-outlined">inventory_2</span></button>`;
-  const botonEditar = esAdmin ? `<button class="row-action-btn" type="button" data-action="edit" title="Editar"><span class="material-symbols-outlined">edit</span></button>` : '';
   const botonEliminar = esAdmin ? `<button class="row-action-btn row-action-btn--danger" type="button" data-action="delete" title="Eliminar"><span class="material-symbols-outlined">delete</span></button>` : '';
 
   tbody.innerHTML = bodegas.map((b) => {
@@ -495,7 +494,7 @@ async function cargarEncargados() {
   const select = document.getElementById('bodega-encargado');
   if (!select) return;
   try {
-    const raw = await apiFetch('/api/usuarios');
+    const raw = await apiFetch('/api/proveedores');
     const usuarios = Array.isArray(raw) ? raw : (raw?.content || []);
     select.innerHTML = '<option value="" disabled selected>Selecciona un encargado...</option>' +
       usuarios.map((u) => `<option value="${u.id}">${u.username}</option>`).join('');
@@ -1919,13 +1918,10 @@ async function cargarOrdenes() {
 }
 
 async function cargarProductosParaOrden() {
-  const select = document.getElementById('orden-producto');
-  if (!select) return;
   try {
     const raw = await apiFetch('/api/productos');
     const productos = Array.isArray(raw) ? raw : (raw?.content || []);
-    select.innerHTML = '<option value="" disabled selected>Selecciona un producto...</option>' +
-      productos.map(p => `<option value="${p.id}">${p.nombre} (PRD-${p.id})</option>`).join('');
+    window.productosParaOrden = productos;
   } catch (err) {
     console.error('Error cargando productos para orden:', err);
   }
@@ -1935,10 +1931,10 @@ async function cargarProveedoresParaOrden() {
   const select = document.getElementById('orden-proveedor');
   if (!select) return;
   try {
-    const raw = await apiFetch('/api/usuarios');
-    const usuarios = Array.isArray(raw) ? raw : (raw?.content || []);
+    const raw = await apiFetch('/api/proveedores');
+    const proveedores = Array.isArray(raw) ? raw : (raw?.content || []);
     select.innerHTML = '<option value="" disabled selected>Selecciona un proveedor...</option>' +
-      usuarios.map(u => `<option value="${u.id}">${u.username}</option>`).join('');
+      proveedores.map(p => `<option value="${p.id}">${p.nombre}</option>`).join('');
   } catch (err) {
     console.error('Error cargando proveedores para orden:', err);
   }
@@ -2040,7 +2036,7 @@ function renderOrdenes(ordenes) {
   };
 
   tbody.innerHTML = ordenes.map((o) => {
-    const total = o.precioUnitario ? Number(o.precioUnitario) * o.cantidad : 0;
+    const total = o.total != null ? Number(o.total) : (o.precioUnitario ? Number(o.precioUnitario) * o.cantidad : 0);
     const badge = badgeClass[o.estado] || '';
     const puedeCambiarEstado = esAdmin && (o.estado === 'BORRADOR' || o.estado === 'APROBADA');
     const siguientesEstados = {
@@ -2073,6 +2069,7 @@ function renderOrdenes(ordenes) {
             </div>
           ` : ''}
           ${esAdmin ? `
+            ${o.estado === 'BORRADOR' ? `<button class="row-action-btn" type="button" data-action="edit-order" data-orden-id="${o.id}" title="Editar orden"><span class="material-symbols-outlined">edit</span></button>` : ''}
             <button class="row-action-btn" type="button" data-action="pdf" data-orden-id="${o.id}" title="PDF">
               <span class="material-symbols-outlined">picture_as_pdf</span>
             </button>
@@ -2089,6 +2086,26 @@ function renderOrdenes(ordenes) {
 }
 
 function adjuntarEventosFilasOrden() {
+  document.querySelectorAll('[data-action="edit-order"]').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const orden = todasLasOrdenes.find(o => o.id == btn.dataset.ordenId);
+      const form = document.getElementById('orden-form');
+      if (!orden || !form) return;
+      form.dataset.editingId = orden.id;
+      form.elements.proveedorId.value = orden.proveedor?.id || '';
+      form.elements.bodegaDestinoId.value = orden.bodegaDestino?.id || '';
+      const detalles = orden.detalles?.length ? orden.detalles : [{
+        producto: orden.producto,
+        cantidad: orden.cantidad,
+        precioUnitario: orden.precioUnitario
+      }];
+      crearFilasDetalleOrden(detalles, true);
+      document.getElementById('orden-modal-title').textContent = `Editar Orden ORD-${orden.id}`;
+      document.getElementById('orden-form-submit-label').textContent = 'Guardar cambios';
+      document.getElementById('orden-modal-backdrop')?.classList.add('is-open');
+    });
+  });
+
   document.querySelectorAll('.estado-select').forEach((select) => {
     select.addEventListener('change', async (e) => {
       const nuevoEstado = e.target.value;
@@ -2169,44 +2186,109 @@ function adjuntarEventosFilasOrden() {
   });
 }
 
+function crearFilasDetalleOrden(detalles = [], reemplazar = false) {
+  const container = document.getElementById('orden-detalles-list');
+  if (!container) return;
+  const productos = window.productosParaOrden || [];
+  const filas = detalles.length ? detalles : [{}];
+  if (reemplazar) container.innerHTML = '';
+  filas.forEach((detalle, index) => {
+    const row = document.createElement('div');
+    row.className = 'orden-detalle-row form-grid-2';
+    row.dataset.detailIndex = index;
+    row.innerHTML = `
+      <div class="select-wrapper">
+        <select class="form-select" name="productoId" required>
+          <option value="" disabled ${detalle.producto?.id ? '' : 'selected'}>Selecciona un producto...</option>
+          ${productos.map(p => `<option value="${p.id}" ${p.id == detalle.producto?.id ? 'selected' : ''}>${p.nombre} (PRD-${p.id})</option>`).join('')}
+        </select>
+        <span class="material-symbols-outlined">expand_more</span>
+      </div>
+      <input class="form-input form-input--mono" name="cantidad" type="number" min="1" value="${detalle.cantidad || 1}" required placeholder="Cantidad">
+      <div class="input-prefix">
+        <span class="input-prefix__symbol">$</span>
+        <input class="form-input form-input--mono" name="precioUnitario" type="number" min="0" step="0.01" value="${detalle.precioUnitario ?? ''}" required placeholder="Precio unitario">
+      </div>
+      <button class="row-action-btn row-action-btn--danger orden-remove-detail" type="button" title="Eliminar producto" ${filas.length === 1 ? 'disabled' : ''}>
+        <span class="material-symbols-outlined">delete</span>
+      </button>
+    `;
+    container.appendChild(row);
+    row.querySelectorAll('input, select').forEach(input => {
+      input.addEventListener('input', window.actualizarTotalOrden);
+      input.addEventListener('change', window.actualizarTotalOrden);
+    });
+    row.querySelector('.orden-remove-detail')?.addEventListener('click', () => {
+      row.remove();
+      actualizarBotonesEliminarDetalleOrden();
+      window.actualizarTotalOrden?.();
+    });
+  });
+  actualizarBotonesEliminarDetalleOrden();
+  window.actualizarTotalOrden?.();
+}
+
+function actualizarBotonesEliminarDetalleOrden() {
+  const filas = document.querySelectorAll('#orden-detalles-list .orden-detalle-row');
+  filas.forEach(fila => {
+    const boton = fila.querySelector('.orden-remove-detail');
+    if (boton) boton.disabled = filas.length === 1;
+  });
+}
+
 function initCrearOrdenForm() {
   const form = document.getElementById('orden-form');
   if (!form) return;
 
-  const cantidadInput = document.getElementById('orden-cantidad');
-  const precioInput = document.getElementById('orden-precio-unitario');
   const totalInput = document.getElementById('orden-total-estimado');
 
   function actualizarTotal() {
-    const cantidad = Number(cantidadInput.value) || 0;
-    const precio = Number(precioInput.value) || 0;
-    totalInput.value = `$${(cantidad * precio).toFixed(2)}`;
+    const total = [...form.querySelectorAll('.orden-detalle-row')].reduce((sum, row) =>
+      sum + (Number(row.querySelector('[name="cantidad"]')?.value) || 0) * (Number(row.querySelector('[name="precioUnitario"]')?.value) || 0), 0);
+    totalInput.value = `$${total.toFixed(2)}`;
   }
 
-  cantidadInput?.addEventListener('input', actualizarTotal);
-  precioInput?.addEventListener('input', actualizarTotal);
+  window.actualizarTotalOrden = actualizarTotal;
+  document.getElementById('orden-add-detail-btn')?.addEventListener('click', () => {
+    crearFilasDetalleOrden([{}]);
+    actualizarBotonesEliminarDetalleOrden();
+  });
+  crearFilasDetalleOrden();
 
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (!form.checkValidity()) { form.reportValidity(); return; }
 
+    const detalles = [...form.querySelectorAll('.orden-detalle-row')].map((row) => ({
+      productoId: Number(row.querySelector('[name="productoId"]')?.value),
+      cantidad: Number(row.querySelector('[name="cantidad"]')?.value),
+      precioUnitario: Number(row.querySelector('[name="precioUnitario"]')?.value)
+    }));
+    if (!detalles.length || detalles.some(d => !d.productoId || d.cantidad < 1 || d.precioUnitario < 0)) {
+      UIKit.toast('Agrega productos, cantidades y precios válidos.', 'error');
+      return;
+    }
     const payload = {
       proveedorId: Number(form.elements.proveedorId.value),
       bodegaDestinoId: Number(form.elements.bodegaDestinoId.value),
-      detalles: [{
-        productoId: Number(form.elements.productoId.value),
-        cantidad: Number(form.elements.cantidad.value),
-        precioUnitario: Number(form.elements.precioUnitario.value)
-      }]
+      detalles
     };
 
+    const editingId = form.dataset.editingId;
     try {
-      await apiFetch('/api/ordenes', { method: 'POST', body: JSON.stringify(payload) });
+      await apiFetch(editingId ? `/api/ordenes/${editingId}` : '/api/ordenes', {
+        method: editingId ? 'PUT' : 'POST',
+        body: JSON.stringify(payload)
+      });
       document.getElementById('orden-modal-backdrop')?.classList.remove('is-open');
       form.reset();
+      crearFilasDetalleOrden([], true);
       totalInput.value = '$0.00';
       cargarOrdenes();
-      UIKit.toast('Orden creada en estado Borrador', 'success');
+      delete form.dataset.editingId;
+      document.getElementById('orden-modal-title').textContent = 'Nueva Orden de Compra';
+      document.getElementById('orden-form-submit-label').textContent = 'Crear Orden (Borrador)';
+      UIKit.toast(editingId ? 'Orden actualizada correctamente' : 'Orden creada en estado Borrador', 'success');
     } catch (err) {
       UIKit.toast(err.message, 'error');
     }
@@ -2215,9 +2297,10 @@ function initCrearOrdenForm() {
 
 document.getElementById('open-create-orden-modal-btn')?.addEventListener('click', () => {
   const form = document.getElementById('orden-form');
-  if (form) form.reset();
+  if (form) { form.reset(); delete form.dataset.editingId; crearFilasDetalleOrden([], true); }
   document.getElementById('orden-total-estimado').value = '$0.00';
   document.getElementById('orden-modal-title').textContent = 'Nueva Orden de Compra';
+  document.getElementById('orden-form-submit-label').textContent = 'Crear Orden (Borrador)';
   document.getElementById('orden-modal-backdrop')?.classList.add('is-open');
 });
 
@@ -2453,7 +2536,7 @@ async function cargarOrdenesRecientes() {
         <tr>
           <td class="metric-cell__value">ORD-${o.id}</td>
           <td class="product-cell__name">${o.producto?.nombre || '-'}</td>
-          <td>${o.proveedor?.username || o.proveedor?.nombre || '-'}</td>
+<td>${o.proveedor?.nombre || '-'}</td>
           <td class="is-right"><span class="metric-cell__value">$${total.toFixed(2)}</span></td>
           <td><span class="status-badge ${badge}">${o.estado}</span></td>
           <td class="cell-muted">${o.fechaCreacion ? new Date(o.fechaCreacion).toLocaleDateString('es-CO') : '-'}</td>
