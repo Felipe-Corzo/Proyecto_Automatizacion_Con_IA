@@ -1,5 +1,6 @@
 package com.logitrack.service;
 
+import com.logitrack.exception.BadRequestException;
 import com.logitrack.model.EstadoOrden;
 import com.logitrack.model.OrdenCompra;
 import com.lowagie.text.*;
@@ -13,12 +14,40 @@ import java.awt.Color;
 public class PdfGeneratorService {
 
     public byte[] crearPdfOrden(OrdenCompra orden) {
+        if (orden == null) {
+            throw new BadRequestException("La orden de compra no puede ser nula");
+        }
+        if (orden.getProveedor() == null) {
+            throw new BadRequestException("La orden de compra debe tener un proveedor asociado");
+        }
+        if (orden.getBodegaDestino() == null) {
+            throw new BadRequestException("La orden de compra debe tener una bodega de destino asociada");
+        }
+        if (orden.getProducto() == null) {
+            throw new BadRequestException("La orden de compra debe tener un producto asociado");
+        }
+        if (orden.getFechaCreacion() == null) {
+            throw new BadRequestException("La orden de compra debe tener una fecha de creación");
+        }
+        if (orden.getEstado() == null) {
+            throw new BadRequestException("La orden de compra debe tener un estado");
+        }
+        if (orden.getCantidad() == null) {
+            throw new BadRequestException("La orden de compra debe tener una cantidad");
+        }
+        if (orden.getPrecioUnitario() == null) {
+            throw new BadRequestException("La orden de compra debe tener un precio unitario");
+        }
+        if (orden.getTotal() == null) {
+            throw new BadRequestException("La orden de compra debe tener un total calculado");
+        }
+
         ByteArrayOutputStream out = new ByteArrayOutputStream();
         Document document = new Document(PageSize.A4, 50, 50, 50, 50);
 
         try {
             PdfWriter writer = PdfWriter.getInstance(document, out);
-            
+
             // Si la orden está en estado BORRADOR, inyectamos la marca de agua usando eventos de página de OpenPDF [9]
             if (orden.getEstado() == EstadoOrden.BORRADOR) {
                 writer.setPageEvent(new PdfPageEventHelper() {
@@ -33,7 +62,7 @@ public class PdfGeneratorService {
                         }
                         canvas.saveState();
                         // Color gris muy claro para simular semitransparencia legible [9]
-                        canvas.setColorFill(new Color(220, 220, 220)); 
+                        canvas.setColorFill(new Color(220, 220, 220));
                         canvas.beginText();
                         canvas.setFontAndSize(font, 80);
                         // Escribir la marca de agua cruzada en un ángulo diagonal de 45 grados [9]
@@ -75,7 +104,7 @@ public class PdfGeneratorService {
             document.close();
 
         } catch (DocumentException e) {
-            e.printStackTrace();
+            throw new BadRequestException("Error generando el PDF: " + e.getMessage(), e);
         }
 
         return out.toByteArray();

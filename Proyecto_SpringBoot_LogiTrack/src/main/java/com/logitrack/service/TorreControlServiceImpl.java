@@ -6,6 +6,7 @@ import com.logitrack.exception.ResourceNotFoundException;
 import com.logitrack.model.*;
 import com.logitrack.repository.*;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -21,6 +22,9 @@ public class TorreControlServiceImpl implements TorreControlService {
 
     @Autowired
     private OrdenCompraRepository ordenCompraRepository;
+
+    @Autowired
+    private UsuarioRepository usuarioRepository;
 
     @Autowired
     private ProductoRepository productoRepository;
@@ -84,10 +88,18 @@ public class TorreControlServiceImpl implements TorreControlService {
     @Override
     @Transactional // Hace que la actualización de la orden y la inserción del movimiento ocurran en un solo bloque atómico [7]
     public OrdenCompra cambiarEstadoOrden(Long id, EstadoOrden nuevoEstado) {
+        if (nuevoEstado == null) {
+            throw new BadRequestException("El nuevo estado no puede ser nulo");
+        }
+        
         OrdenCompra orden = ordenCompraRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Orden de compra no encontrada"));
 
         EstadoOrden estadoActual = orden.getEstado();
+        
+        if (estadoActual == null) {
+            throw new BadRequestException("La orden no tiene un estado definido");
+        }
 
         // Validar transiciones prohibidas de la especificación [8]
         if (estadoActual == EstadoOrden.CANCELADA || estadoActual == EstadoOrden.RECIBIDA) {
@@ -117,6 +129,13 @@ public class TorreControlServiceImpl implements TorreControlService {
         mov.setFecha(LocalDateTime.now());
         mov.setTipoMovimiento(TipoMovimiento.ENTRADA); // Entrada automática de stock [7]
         mov.setBodegaDestino(orden.getBodegaDestino());
+        var authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()) {
+            String username = authentication.getName();
+            Usuario usuario = usuarioRepository.findByUsername(username)
+                .orElseThrow(() -> new BadRequestException("El usuario autenticado no existe."));
+            mov.setUsuario(usuario);
+        }
 
         MovimientoDetalle detalle = new MovimientoDetalle();
         detalle.setProducto(orden.getProducto());

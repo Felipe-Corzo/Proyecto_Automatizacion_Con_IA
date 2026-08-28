@@ -26,7 +26,7 @@ public class OrdenCompraIntegrationTest {
     @Autowired
     private MockMvc mockMvc;
 
-    // PRUEBA 8: PDF en estado BORRADOR con marca de agua y eliminación al cambiar estado
+        // PRUEBA 8: PDF en estado BORRADOR con marca de agua y regeneración al cambiar estado
     @Test
     @WithMockUser(username = "admin", roles = "ADMIN") // Simular usuario administrador
     @DisplayName("8. Generación de PDF en BORRADOR (con marca de agua) e inhabilitación automática al cambiar de estado")
@@ -58,9 +58,9 @@ public class OrdenCompraIntegrationTest {
                 .content("{\"estado\": \"APROBADA\"}"))
                 .andExpect(status().isOk());
 
-        // 4. Intentar descargar el PDF de inmediato sin haberlo regenerado.
-        // Las reglas dictan que el PDF viejo debe eliminarse y arrojar 404 Not Found hasta que se genere de nuevo.
+        // 4. Descargar el PDF después del cambio; el backend lo regenera automáticamente.
         mockMvc.perform(get("/api/ordenes/1/pdf").with(user("admin").roles("ADMIN")))
-                .andExpect(status().isNotFound()); // Debe retornar 404 Not Found
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_PDF));
     }
 }

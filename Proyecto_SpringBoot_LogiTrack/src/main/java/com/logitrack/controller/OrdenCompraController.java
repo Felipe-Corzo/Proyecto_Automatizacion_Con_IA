@@ -110,13 +110,19 @@ public class OrdenCompraController {
 
     @GetMapping("/{id}/pdf") // ADMIN y EMPLEADO descargan y previsualizan el archivo PDF [9, 10]
     public ResponseEntity<byte[]> descargarPdf(@PathVariable Long id) {
+        OrdenCompra orden = ordenCompraRepository.findById(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Orden no encontrada"));
+        
         byte[] pdfData;
         try {
             pdfData = service.obtenerPdfOrden(id);
         } catch (ResourceNotFoundException e) {
-            // Auto-generar PDF si no existe
-            service.generarPdfOrden(id);
-            pdfData = service.obtenerPdfOrden(id);
+            try {
+                service.generarPdfOrden(id);
+                pdfData = service.obtenerPdfOrden(id);
+            } catch (Exception ex) {
+                throw new BadRequestException("Error generando el PDF: " + ex.getMessage());
+            }
         }
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_PDF);

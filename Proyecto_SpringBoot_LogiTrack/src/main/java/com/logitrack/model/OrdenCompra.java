@@ -1,10 +1,13 @@
 package com.logitrack.model;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import lombok.Getter;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -52,10 +55,13 @@ public class OrdenCompra {
     @Column(name = "creado_por")
     private String creadoPor;
 
+    @JsonIgnore // Evitar serialización en respuestas JSON
     @Lob // Define un objeto binario grande en la base de datos (Large Object) [1]
+    @JdbcTypeCode(SqlTypes.VARBINARY)
     @Column(name = "pdf_data", columnDefinition = "bytea") // Para almacenar el archivo PDF completo en bytes
     private byte[] pdfData;
 
+    @JsonIgnore // Evitar serialización en respuestas JSON
     @Column(name = "pdf_fecha_generacion")
     private LocalDateTime pdfFechaGeneracion;
 }
