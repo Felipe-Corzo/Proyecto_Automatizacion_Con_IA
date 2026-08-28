@@ -95,7 +95,15 @@ INSERT INTO ordenes_compra (id, producto_id, proveedor_id, bodega_destino_id, ca
 (13, 13, 4, 5, 10, 280.00, 2800.00, CURRENT_TIMESTAMP - INTERVAL '3 hours', 'APROBADA', 'jdoe'),
 (14, 14, 2, 1, 5, 520.00, 2600.00, CURRENT_TIMESTAMP - INTERVAL '1 hour', 'RECIBIDA', 'mgarcia'),
 (15, 15, 1, 2, 3, 1100.00, 3300.00, CURRENT_TIMESTAMP, 'BORRADOR', 'crodriguez')
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    producto_id = EXCLUDED.producto_id,
+    proveedor_id = EXCLUDED.proveedor_id,
+    bodega_destino_id = EXCLUDED.bodega_destino_id,
+    cantidad = EXCLUDED.cantidad,
+    precio_unitario = EXCLUDED.precio_unitario,
+    total = EXCLUDED.total,
+    estado = EXCLUDED.estado,
+    creado_por = EXCLUDED.creado_por;
 
 -- Movimientos Inventario
 INSERT INTO movimientos (id, fecha, tipo_movimiento, usuario_id, bodega_origen_id, bodega_destino_id) VALUES

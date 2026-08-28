@@ -17,6 +17,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import com.lowagie.text.pdf.PdfReader;
+import com.lowagie.text.pdf.parser.PdfTextExtractor;
 
 @SpringBootTest
 @AutoConfigureMockMvc
@@ -47,9 +48,14 @@ public class OrdenCompraIntegrationTest {
         assertTrue(pdfBytes.length > 0, "El contenido del archivo PDF debe tener bytes");
 
         PdfReader pdfReader = new PdfReader(pdfBytes);
-        String pdfText = new String(pdfReader.getPageContent(1));
+        PdfTextExtractor extractor = new PdfTextExtractor(pdfReader);
+        String pdfText = extractor.getTextFromPage(1);
+        String rawContent = new String(pdfReader.getPageContent(1));
         pdfReader.close();
-        assertTrue(pdfText.contains("BORRADOR"), "El documento generado en borrador debe contener la marca 'BORRADOR'");
+        System.out.println("=== PDF TEXT EXTRACTED: [" + pdfText + "] ===");
+        System.out.println("=== PDF RAW CONTENT: [" + rawContent + "] ===");
+        System.out.println("=== PDF SIZE: " + pdfBytes.length + " ===");
+        assertTrue(pdfText.contains("BORRADOR"), "El documento generado en borrador debe contener la marca 'BORRADOR'. Texto extraido: [" + pdfText + "]");
 
         // 3. Cambiar el estado de la orden de BORRADOR a APROBADA (usando el endpoint PATCH)
         mockMvc.perform(patch("/api/ordenes/1/estado")

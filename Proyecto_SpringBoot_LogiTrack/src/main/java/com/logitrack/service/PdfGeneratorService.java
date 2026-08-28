@@ -77,6 +77,14 @@ public class PdfGeneratorService {
 
             document.open();
 
+            // Si está en BORRADOR, agregar marca visible en el contenido del documento
+            if (orden.getEstado() == EstadoOrden.BORRADOR) {
+                Paragraph watermark = new Paragraph("BORRADOR", FontFactory.getFont(FontFactory.HELVETICA_BOLD, 24, new Color(200, 200, 200)));
+                watermark.setAlignment(Element.ALIGN_CENTER);
+                document.add(watermark);
+                document.add(new Paragraph("\n"));
+            }
+
             // Dibujar cabecera y contenidos legibles de la orden de compra [9]
             Paragraph title = new Paragraph("ORDEN DE COMPRA NRO: " + orden.getId(), FontFactory.getFont(FontFactory.HELVETICA_BOLD, 18, Color.DARK_GRAY));
             title.setAlignment(Element.ALIGN_CENTER);
