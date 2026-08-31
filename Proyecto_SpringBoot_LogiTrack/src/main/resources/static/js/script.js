@@ -2361,7 +2361,8 @@ async function cargarResumenDiario() {
     }
 
     const data = JSON.parse(resumen.contenidoJson);
-    const fecha = new Date(resumen.fecha).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const [year, month, day] = resumen.fecha.split('-').map(Number);
+    const fecha = new Date(year, month - 1, day).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     let html = `
       <div class="resumen-diario">
@@ -2379,7 +2380,10 @@ async function cargarResumenDiario() {
         <div class="resumen-section">
           <h4><span class="material-symbols-outlined">warning</span> Alertas Críticas</h4>
           <ul>`;
-      data.alertas.forEach(a => { html += `<li>${a}</li>`; });
+      data.alertas.forEach(a => {
+        const alertText = typeof a === 'object' ? [a.producto, a.titulo, a.detalle].filter(Boolean).join(': ') : a;
+        html += `<li>${alertText}</li>`;
+      });
       html += `</ul></div>`;
     }
 
@@ -2388,7 +2392,10 @@ async function cargarResumenDiario() {
         <div class="resumen-section">
           <h4><span class="material-symbols-outlined">lightbulb</span> Acciones Sugeridas</h4>
           <ul>`;
-      data.accionesSugeridas.forEach(a => { html += `<li>${a}</li>`; });
+      data.accionesSugeridas.forEach(a => {
+        const actionText = typeof a === 'object' ? (a.descripcion || a.texto || JSON.stringify(a)) : a;
+        html += `<li>${actionText}</li>`;
+      });
       html += `</ul></div>`;
     }
 
@@ -2595,7 +2602,8 @@ document.getElementById('ver-resumen-completo-btn')?.addEventListener('click', a
     }
 
     const data = JSON.parse(resumen.contenidoJson);
-    const fecha = new Date(resumen.fecha).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+    const [year, month, day] = resumen.fecha.split('-').map(Number);
+    const fecha = new Date(year, month - 1, day).toLocaleDateString('es-CO', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
 
     let html = `
       <div class="resumen-diario-completo">
@@ -2613,7 +2621,10 @@ document.getElementById('ver-resumen-completo-btn')?.addEventListener('click', a
         <div class="resumen-section" style="margin-bottom: 1.5rem;">
           <h4 style="margin-bottom: 0.5rem;"><span class="material-symbols-outlined" style="vertical-align: middle;">warning</span> Alertas Críticas</h4>
           <ul style="padding-left: 1.25rem; line-height: 1.8;">`;
-      data.alertas.forEach(a => { html += `<li>${a}</li>`; });
+      data.alertas.forEach(a => {
+        const alertText = typeof a === 'object' ? [a.producto, a.titulo, a.detalle].filter(Boolean).join(': ') : a;
+        html += `<li>${alertText}</li>`;
+      });
       html += `</ul></div>`;
     }
 
@@ -2622,7 +2633,10 @@ document.getElementById('ver-resumen-completo-btn')?.addEventListener('click', a
         <div class="resumen-section">
           <h4 style="margin-bottom: 0.5rem;"><span class="material-symbols-outlined" style="vertical-align: middle;">lightbulb</span> Acciones Sugeridas</h4>
           <ul style="padding-left: 1.25rem; line-height: 1.8;">`;
-      data.accionesSugeridas.forEach(a => { html += `<li>${a}</li>`; });
+      data.accionesSugeridas.forEach(a => {
+        const actionText = typeof a === 'object' ? (a.descripcion || a.texto || JSON.stringify(a)) : a;
+        html += `<li>${actionText}</li>`;
+      });
       html += `</ul></div>`;
     }
 

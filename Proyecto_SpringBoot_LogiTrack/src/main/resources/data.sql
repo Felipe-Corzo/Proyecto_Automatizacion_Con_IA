@@ -75,7 +75,12 @@ INSERT INTO productos (id, nombre, categoria, stock, precio, proveedor_id) VALUE
 (18, 'Memoria RAM DDR5 32GB', 'Componentes', 18, 150.00, 3),
 (19, 'Tarjeta Grafica RTX 4070', 'Componentes', 1, 800.00, 5),
 (20, 'Fuente Poder 850W 80+ Gold', 'Componentes', 9, 140.00, 3)
-ON CONFLICT (id) DO NOTHING;
+ON CONFLICT (id) DO UPDATE SET
+    nombre = EXCLUDED.nombre,
+    categoria = EXCLUDED.categoria,
+    stock = EXCLUDED.stock,
+    precio = EXCLUDED.precio,
+    proveedor_id = EXCLUDED.proveedor_id;
 
 -- Órdenes de Compra (varios estados)
 INSERT INTO ordenes_compra (id, producto_id, proveedor_id, bodega_destino_id, cantidad,
@@ -198,7 +203,7 @@ ON CONFLICT (producto_id, bodega_id) DO UPDATE SET stock = EXCLUDED.stock;
 -- Resumen diario del panel (Torre de Control)
 INSERT INTO resumenes_panel (id, fecha, contenido_json, autor) VALUES
 (1, CURRENT_DATE, '{"narrativa": "Dia operativamente estable. Se recibieron 3 ordenes de compra (ORD-3, ORD-6, ORD-14) totalizando 6,400 USD en inventario nuevo. Las transferencias entre bodegas Bogota-Medellin y Cali-Barranquilla se completaron sin incidencias.", "alertas": ["Stock critico: Monitor Dell UltraSharp (8 und en Medellin, 0 en Bogota)", "Quiebre inminente: Silla Ergonomica Herman Miller (4 und, consumo 2/dia)", "Router Cisco Meraki solo 3 unidades, proveedor con 10 dias entrega"], "accionesSugeridas": ["Generar orden de reposicion para monitores (sugerido: 20 und a TechSupply)", "Crear orden urgente para sillas ergonomicas (proveedor Office Solutions, 3 dias)", "Evaluar proveedor alternativo para equipos de red (dias entrega > 7)"], "kpis": {"ordenesPendientes": 7, "valorPendiente": 28420, "productosRiesgo": 5, "quiebres": 2}}', 'agente_automatizado')
-ON CONFLICT (fecha) DO UPDATE SET contenido_json = EXCLUDED.contenido_json, autor = EXCLUDED.autor;
+ON CONFLICT (id) DO UPDATE SET contenido_json = EXCLUDED.contenido_json, autor = EXCLUDED.autor;
 
 -- Ajustar secuencias para evitar conflictos de ID
 SELECT setval('proyecto.usuarios_id_seq', (SELECT COALESCE(MAX(id), 0) FROM proyecto.usuarios));

@@ -1,7 +1,10 @@
 package com.logitrack.controller;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -30,5 +33,22 @@ class DashboardKpiControllerTest {
                 .andExpect(jsonPath("$.productosEnQuiebre").exists())
                 .andExpect(jsonPath("$.valorTotalInventario").exists())
                 .andExpect(jsonPath("$.ocupacionPromedioBodegas").exists());
+    }
+
+    @Test
+    @DisplayName("POST /api/resumenes-panel guarda el resumen del agente con alertas y recomendaciones")
+    void postDailySummaryStoresAgentNarrativeAndAlerts() throws Exception {
+        mockMvc.perform(post("/api/resumenes-panel")
+                .with(user("agente_automatizado").roles("AGENTE"))
+                .contentType("application/json")
+                .content("{\n" +
+                        "  \"resumenEjecutivo\": \"Análisis completado: 3 productos en riesgo.\",\n" +
+                        "  \"alertasCriticas\": \"QUIEBRE: Monitor Dell UltraSharp (Stock: 0)\\nRIESGO: Silla Ergonomica Herman Miller (Stock: 4)\",\n" +
+                        "  \"recomendacionesAgente\": \"Revisar y aprobar 2 órdenes en borrador. Contactar proveedores críticos.\"\n" +
+                        "}"))
+                .andExpect(status().isOk())
+                .andExpect(content().string(containsString("Análisis completado: 3 productos en riesgo.")))
+                .andExpect(content().string(containsString("QUIEBRE: Monitor Dell UltraSharp (Stock: 0)")))
+                .andExpect(content().string(containsString("Revisar y aprobar 2 órdenes en borrador.")));
     }
 }
